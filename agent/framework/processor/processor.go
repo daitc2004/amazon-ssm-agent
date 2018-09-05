@@ -71,9 +71,16 @@ type EngineProcessor struct {
 	documentMgr       docmanager.DocumentMgr
 }
 
+func NewEngineProcessor(ctx context.T, commandWorkerLimit int, cancelWorkerLimit int, supportedDocs []contracts.DocumentType) *EngineProcessor {
+	executerCreator := func(ctx context.T) executer.Executer {
+		return outofproc.NewOutOfProcExecuter(ctx)
+	}
+	return NewEngineProcessorWithExecuter(ctx, commandWorkerLimit, cancelWorkerLimit, supportedDocs, executerCreator)
+}
+
 //TODO worker pool should be triggered in the Start() function
 //supported document types indicate the domain of the documentes the Processor with run upon. There'll be race-conditions if there're multiple Processors in a certain domain.
-func NewEngineProcessor(ctx context.T, commandWorkerLimit int, cancelWorkerLimit int, supportedDocs []contracts.DocumentType) *EngineProcessor {
+func NewEngineProcessorWithExecuter(ctx context.T, commandWorkerLimit int, cancelWorkerLimit int, supportedDocs []contracts.DocumentType, executerCreator ExecuterCreator) *EngineProcessor {
 	log := ctx.Log()
 	// sendCommand and cancelCommand will be processed by separate worker pools
 	// so we can define the number of workers per each
@@ -82,9 +89,6 @@ func NewEngineProcessor(ctx context.T, commandWorkerLimit int, cancelWorkerLimit
 	sendCommandTaskPool := task.NewPool(log, commandWorkerLimit, cancelWaitDuration, clock)
 	cancelCommandTaskPool := task.NewPool(log, cancelWorkerLimit, cancelWaitDuration, clock)
 	resChan := make(chan contracts.DocumentResult)
-	executerCreator := func(ctx context.T) executer.Executer {
-		return outofproc.NewOutOfProcExecuter(ctx)
-	}
 	documentMgr := docmanager.NewDocumentFileMgr(appconfig.DefaultDataStorePath, appconfig.DefaultDocumentRootDirName, appconfig.DefaultLocationOfState)
 	return &EngineProcessor{
 		context:           ctx.With("[EngineProcessor]"),

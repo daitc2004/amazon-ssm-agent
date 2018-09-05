@@ -38,10 +38,10 @@ const (
 
 var getRegion = platform.Region
 
+type S3UtilCreator func(log log.T, bucketName string) IAmazonS3Util
+
 type IAmazonS3Util interface {
 	S3Upload(log log.T, bucketName string, objectKey string, filePath string) error
-	GetBucketRegion(log log.T, bucketName string) string
-	GetS3Header(log log.T, bucketName string, instanceRegion string) string
 }
 
 type AmazonS3Util struct {

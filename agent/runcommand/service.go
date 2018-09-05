@@ -23,7 +23,7 @@ import (
 	associationProcessor "github.com/aws/amazon-ssm-agent/agent/association/processor"
 	"github.com/aws/amazon-ssm-agent/agent/context"
 	"github.com/aws/amazon-ssm-agent/agent/contracts"
-	"github.com/aws/amazon-ssm-agent/agent/framework/processor"
+	frameworkProcessor "github.com/aws/amazon-ssm-agent/agent/framework/processor"
 	"github.com/aws/amazon-ssm-agent/agent/framework/processor/executer"
 	"github.com/aws/amazon-ssm-agent/agent/jsonutil"
 	"github.com/aws/amazon-ssm-agent/agent/log"
@@ -96,7 +96,7 @@ type RunCommandService struct {
 	assocProcessor      *associationProcessor.Processor
 	processorStopPolicy *sdkutil.StopPolicy
 	pollAssociations    bool
-	processor           processor.Processor
+	processor           frameworkProcessor.Processor
 }
 
 // NewOfflineProcessor initialize a new offline command document processor
@@ -122,8 +122,14 @@ func NewMDSService(context context.T) *RunCommandService {
 	return NewService(messageContext, mdsName, mdsService, config.Mds.CommandWorkersLimit, CancelWorkersLimit, true, []contracts.DocumentType{contracts.SendCommand, contracts.CancelCommand})
 }
 
-// NewProcessor performs common initialization for Mds and Offline processors
+// NewMdsProcessor initializes engine processor and RunCommand service
 func NewService(ctx context.T, serviceName string, service mdsService.Service, commandWorkerLimit int, cancelWorkerLimit int, pollAssoc bool, supportedDocs []contracts.DocumentType) *RunCommandService {
+	processor := frameworkProcessor.NewEngineProcessor(ctx, commandWorkerLimit, cancelWorkerLimit, supportedDocs)
+	return NewServiceWithProcessor(ctx, serviceName, service, pollAssoc, processor)
+}
+
+// NewServiceWithProcessor performs common initialization for Mds and Offline processors
+func NewServiceWithProcessor(ctx context.T, serviceName string, service mdsService.Service, pollAssoc bool, processor *frameworkProcessor.EngineProcessor) *RunCommandService {
 	log := ctx.Log()
 	config := ctx.AppConfig()
 
@@ -169,7 +175,6 @@ func NewService(ctx context.T, serviceName string, service mdsService.Service, c
 		assocProc = associationProcessor.NewAssociationProcessor(ctx)
 	}
 
-	processor := processor.NewEngineProcessor(ctx, commandWorkerLimit, cancelWorkerLimit, supportedDocs)
 	return &RunCommandService{
 		context:              ctx,
 		name:                 serviceName,

@@ -69,3 +69,62 @@ var EchoMDSMessage = `{
   "CloudWatchLogGroupName": "",
   "CloudWatchOutputEnabled": "false"
   }`
+
+var EchoMDSMessageWithS3Bucket = `{
+    "Parameters": null,
+    "DocumentContent": {
+      "schemaVersion": "2.2",
+      "description": "doc",
+      "runtimeConfig": null,
+      "mainSteps": [
+        {
+          "action": "aws:runShellScript",
+          "inputs": {
+            "runCommand": [
+              "echo ship_it"
+            ]
+          },
+          "maxAttempts": 0,
+          "name": "pluginLinux",
+          "onFailure": "",
+          "settings": null,
+          "timeoutSeconds": 0,
+          "precondition": {
+            "StringEquals": [
+              "platformType",
+              "Linux"
+            ]
+          }
+        },
+        {
+          "action": "aws:runPowerShellScript",
+          "inputs": {
+            "runCommand": [
+              "echo ship_it"
+            ]
+          },
+          "maxAttempts": 0,
+          "name": "pluginWindows",
+          "onFailure": "",
+          "settings": null,
+          "timeoutSeconds": 0,
+          "precondition": {
+            "StringEquals": [
+              "platformType",
+              "Windows"
+            ]
+          }
+        }
+      ],
+      "parameters": null
+    },
+    "CommandId": "be8d9d4b-da53-4d2f-a96b-60aec17739af",
+    "DocumentName": "test",
+    "OutputS3KeyPrefix": "",
+    "OutputS3BucketName": "usssmbucket",
+    "CloudWatchLogGroupName": "",
+    "CloudWatchOutputEnabled": "false"
+    }`
+
+var EchoMDSMessageOutput = "ship_it"
+var TestS3BucketName = "usssmbucket"

@@ -7,6 +7,7 @@ import (
 
 	"github.com/aws/amazon-ssm-agent/agent/context"
 	"github.com/aws/amazon-ssm-agent/agent/contracts"
+	"github.com/aws/amazon-ssm-agent/agent/framework/runpluginutil"
 	"github.com/aws/amazon-ssm-agent/agent/jsonutil"
 	"github.com/aws/amazon-ssm-agent/agent/task"
 )
@@ -16,21 +17,14 @@ const (
 	defaultBackendChannelSize = 10
 )
 
-type PluginRunner func(
-	context context.T,
-	docState contracts.DocumentState,
-	resChan chan contracts.PluginResult,
-	cancelFlag task.CancelFlag,
-)
-
-//worker backend receives request messages from master, controls a pluginRunner based off the request and send reponses to Executer
+//worker backend receives request messages from master, controls a pluginManager based off the request and send reponses to Executer
 type WorkerBackend struct {
-	ctx        context.T
-	input      chan string
-	once       sync.Once
-	cancelFlag task.CancelFlag
-	runner     PluginRunner
-	stopChan   chan int
+	ctx           context.T
+	input         chan string
+	once          sync.Once
+	cancelFlag    task.CancelFlag
+	pluginManager runpluginutil.IPluginManager
+	stopChan      chan int
 }
 
 //Executer backend formulate the run request to the worker, and collect back the responses from worker
@@ -110,14 +104,14 @@ func (p *ExecuterBackend) formatDocResult(docResult *contracts.DocumentResult) {
 	contracts.UpdateDocState(docResult, p.docState)
 }
 
-func NewWorkerBackend(ctx context.T, runner PluginRunner) *WorkerBackend {
+func NewWorkerBackend(ctx context.T, pm runpluginutil.IPluginManager) *WorkerBackend {
 	stopChan := make(chan int)
 	return &WorkerBackend{
-		ctx:        ctx.With("[DataBackend]"),
-		input:      make(chan string),
-		cancelFlag: task.NewChanneledCancelFlag(),
-		runner:     runner,
-		stopChan:   stopChan,
+		ctx:           ctx.With("[DataBackend]"),
+		input:         make(chan string),
+		cancelFlag:    task.NewChanneledCancelFlag(),
+		pluginManager: pm,
+		stopChan:      stopChan,
 	}
 }
 
@@ -136,7 +130,11 @@ func (p *WorkerBackend) Process(datagram string) error {
 		}
 		p.once.Do(func() {
 			statusChan := make(chan contracts.PluginResult)
-			go p.runner(p.ctx, docState, statusChan, p.cancelFlag)
+			go func() {
+				p.pluginManager.RunPlugins(p.ctx, docState.InstancePluginsInformation, docState.IOConfig, runpluginutil.SSMPluginRegistry, statusChan, p.cancelFlag)
+				//make sure to signal the client that job complete
+				close(statusChan)
+			}()
 			go p.pluginListener(statusChan)
 		})
 

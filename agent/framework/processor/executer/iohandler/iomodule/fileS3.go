@@ -33,6 +33,7 @@ const (
 
 // File handles writing to an output file and upload to s3 and cloudWatch
 type File struct {
+	S3UtilCreator          s3util.S3UtilCreator
 	FileName               string
 	OrchestrationDirectory string
 	OutputS3BucketName     string
@@ -93,7 +94,7 @@ func (file File) Read(log log.T, reader *io.PipeReader) {
 	// Upload output file to S3
 	if file.OutputS3BucketName != "" && fi.Size() > 0 {
 		s3Key := fileutil.BuildS3Path(file.OutputS3KeyPrefix, file.FileName)
-		if err := s3util.NewAmazonS3Util(log, file.OutputS3BucketName).S3Upload(log, file.OutputS3BucketName, s3Key, filePath); err != nil {
+		if err := file.S3UtilCreator(log, file.OutputS3BucketName).S3Upload(log, file.OutputS3BucketName, s3Key, filePath); err != nil {
 			log.Errorf("Failed to upload the output to s3: %v", err)
 		}
 	}

@@ -37,6 +37,16 @@ const (
 	failStep    string = "fail"
 )
 
+type IOHandlerCreator func(log log.T, ioConfig contracts.IOConfiguration) *iohandler.DefaultIOHandler
+
+type IPluginManager interface {
+	RunPlugins(context context.T, plugins []contracts.PluginState, ioConfig contracts.IOConfiguration, pluginRegistry PluginRegistry, resChan chan contracts.PluginResult, cancelFlag task.CancelFlag) (pluginOutputs map[string]*contracts.PluginResult)
+}
+
+type PluginManager struct {
+	iohandlerCreator IOHandlerCreator
+}
+
 type T interface {
 	Execute(context context.T, config contracts.Configuration, cancelFlag task.CancelFlag, output iohandler.IOHandler)
 }
@@ -75,11 +85,24 @@ var allPlugins = map[string]struct{}{
 // Assign method to global variables to allow unittest to override
 var isSupportedPlugin = IsPluginSupportedForCurrentPlatform
 
+func NewPluginManager() *PluginManager {
+	ioHandler := func(log log.T, ioConfig contracts.IOConfiguration) *iohandler.DefaultIOHandler {
+		return iohandler.NewDefaultIOHandler(log, ioConfig)
+	}
+	return NewPluginManagerWithIoHandlerCreator(ioHandler)
+}
+
+func NewPluginManagerWithIoHandlerCreator(ioHandler IOHandlerCreator) *PluginManager {
+	return &PluginManager{
+		iohandlerCreator: ioHandler,
+	}
+}
+
 //TODO remove executionID and creation date
 // RunPlugins executes a set of plugins. The plugin configurations are given in a map with pluginId as key.
 // Outputs the results of running the plugins, indexed by pluginId.
 // Make this function private in case everybody tries to reference it everywhere, this is a private member of Executer
-func RunPlugins(
+func (pm *PluginManager) RunPlugins(
 	context context.T,
 	plugins []contracts.PluginState,
 	ioConfig contracts.IOConfiguration,
@@ -164,7 +187,7 @@ func RunPlugins(
 		switch operation {
 		case executeStep:
 			context.Log().Infof("Running plugin %s", pluginName)
-			r = runPlugin(context, p, pluginName, configuration, cancelFlag, ioConfig)
+			r = pm.runPlugin(context, p, pluginName, configuration, cancelFlag, ioConfig)
 			pluginOutputs[pluginID].Code = r.Code
 			pluginOutputs[pluginID].Status = r.Status
 			pluginOutputs[pluginID].Error = r.Error
@@ -211,7 +234,7 @@ func RunPlugins(
 	return
 }
 
-func runPlugin(
+func (pm *PluginManager) runPlugin(
 	context context.T,
 	pluginFactory Factory,
 	pluginName string,
@@ -246,7 +269,7 @@ func runPlugin(
 	res.StartDateTime = time.Now()
 	defer func() { res.EndDateTime = time.Now() }()
 
-	output := iohandler.NewDefaultIOHandler(log, ioConfig)
+	output := pm.iohandlerCreator(log, ioConfig)
 	//check if properties is a list. If true, then unroll
 	switch config.Properties.(type) {
 	case []interface{}:
@@ -257,7 +280,7 @@ func runPlugin(
 		}
 		for _, prop := range properties {
 			config.Properties = prop
-			propOutput := iohandler.NewDefaultIOHandler(log, ioConfig)
+			propOutput := pm.iohandlerCreator(log, ioConfig)
 			executePlugin(context, p, pluginName, config, cancelFlag, propOutput)
 			output.Merge(log, propOutput)
 		}
