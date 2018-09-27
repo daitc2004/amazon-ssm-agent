@@ -109,6 +109,10 @@ func DefaultConfig() SsmagentConfig {
 		StopTimeoutMillis:   DefaultStopTimeoutMillis,
 		CommandRetryLimit:   DefaultCommandRetryLimit,
 	}
+	var mgs = MgsConfig{
+		SessionWorkersLimit: DefaultSessionWorkersLimit,
+		StopTimeoutMillis:   DefaultStopTimeoutMillis,
+	}
 	var ssm = SsmCfg{
 		HealthFrequencyMinutes:                DefaultSsmHealthFrequencyMinutes,
 		AssociationFrequencyMinutes:           DefaultSsmAssociationFrequencyMinutes,
@@ -116,6 +120,7 @@ func DefaultConfig() SsmagentConfig {
 		CustomInventoryDefaultLocation:        DefaultCustomInventoryFolder,
 		AssociationLogsRetentionDurationHours: DefaultAssociationLogsRetentionDurationHours,
 		RunCommandLogsRetentionDurationHours:  DefaultRunCommandLogsRetentionDurationHours,
+		SessionLogsRetentionDurationHours:     DefaultSessionLogsRetentionDurationHours,
 	}
 	var agent = AgentInfo{
 		Name:                 "amazon-ssm-agent",
@@ -131,6 +136,7 @@ func DefaultConfig() SsmagentConfig {
 		Profile:     credsProfile,
 		Mds:         mds,
 		Ssm:         ssm,
+		Mgs:         mgs,
 		Agent:       agent,
 		Os:          os,
 		S3:          s3,

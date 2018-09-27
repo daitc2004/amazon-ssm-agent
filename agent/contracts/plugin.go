@@ -37,7 +37,7 @@ type PluginResult struct {
 	EndDateTime        time.Time    `json:"endDateTime"`
 	OutputS3BucketName string       `json:"outputS3BucketName"`
 	OutputS3KeyPrefix  string       `json:"outputS3KeyPrefix"`
-	Error              error        `json:"-"`
+	Error              string       `json:"error"`
 	StandardOutput     string       `json:"standardOutput"`
 	StandardError      string       `json:"standardError"`
 }
@@ -65,19 +65,24 @@ type IWorkerPlugin IPlugin
 
 // Configuration represents a plugin configuration as in the json format.
 type Configuration struct {
-	Settings                interface{}
-	Properties              interface{}
-	OutputS3KeyPrefix       string
-	OutputS3BucketName      string
-	OrchestrationDirectory  string
-	MessageId               string
-	BookKeepingFileName     string
-	PluginName              string
-	PluginID                string
-	DefaultWorkingDirectory string
-	Preconditions           map[string][]string
-	IsPreconditionEnabled   bool
-	CurrentAssociations     []string
+	Settings                    interface{}
+	Properties                  interface{}
+	OutputS3KeyPrefix           string
+	OutputS3BucketName          string
+	S3EncryptionEnabled         bool
+	CloudWatchLogGroup          string
+	CloudWatchEncryptionEnabled bool
+	OrchestrationDirectory      string
+	MessageId                   string
+	BookKeepingFileName         string
+	PluginName                  string
+	PluginID                    string
+	DefaultWorkingDirectory     string
+	Preconditions               map[string][]string
+	IsPreconditionEnabled       bool
+	CurrentAssociations         []string
+	SessionId                   string
+	ClientId                    string
 }
 
 // Plugin wraps the plugin configuration and plugin result.

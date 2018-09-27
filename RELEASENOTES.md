@@ -1,6 +1,17 @@
 Latest
 ===============
-- Bug fix for the SSM Agent service remaining in "Starting" state on Windows when unable to authenticate to the Systems Manager service. 
+- Bug fix to prevent defunct processes when creating the local user ssm-user.
+- Bug fix for sudoersFile permission to avoid "sudo" command warnings in Session Manager.
+- Disable hibernation on Windows platform if Cloudwatch configuration is present.
+
+2.3.68.0
+===============
+- Enables the Session Manager capability that lets you manage your Amazon EC2 instance through an interactive one-click browser-based shell or through the AWS CLI.
+- Beginning this agent version, SSM Agent will create a local user "ssm-user" and either add it to /etc/sudoers (Linux) or to the Administrators group (Windows) every time the agent starts. The ssm-user is the default OS user when a Session Manager session is started, and the password for this user is reset on every session. You can change the permissions by moving the ssm-user to a less-privileged group or by changing the sudoers file. The ssm-user is not removed from the system when SSM Agent is uninstalled.
+
+2.3.13.0
+===============
+- Bug fix for the SSM Agent service remaining in "Starting" state on Windows when unable to authenticate to the Systems Manager service.
 
 2.2.916.0
 ===============

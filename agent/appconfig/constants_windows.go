@@ -17,6 +17,7 @@
 package appconfig
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 )
@@ -74,6 +75,12 @@ var DefaultProgramFolder string
 
 //Document executable path
 var DefaultDocumentWorker string
+
+//Session executable path
+var DefaultSessionWorker string
+
+//Session logger executable path
+var DefaultSessionLogger string
 
 // AppConfig Path
 var AppConfigPath string
@@ -165,6 +172,8 @@ func init() {
 	DefaultProgramFolder = filepath.Join(EnvProgramFiles, SSMFolder)
 	DefaultPluginPath = filepath.Join(EnvProgramFiles, SSMPluginFolder)
 	DefaultDocumentWorker = filepath.Join(DefaultProgramFolder, "ssm-document-worker.exe")
+	DefaultSessionWorker = filepath.Join(DefaultProgramFolder, "ssm-session-worker.exe")
+	DefaultSessionLogger = fmt.Sprintf("&'%s'", filepath.Join(DefaultProgramFolder, "ssm-session-logger.exe"))
 	ManifestCacheDirectory = filepath.Join(EnvProgramFiles, ManifestCacheFolder)
 	AppConfigPath = filepath.Join(DefaultProgramFolder, AppConfigFileName)
 	DefaultDataStorePath = filepath.Join(SSMDataPath, "InstanceData")

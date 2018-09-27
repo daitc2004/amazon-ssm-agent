@@ -94,6 +94,8 @@ var PowerShellPluginCommandName string
 // DefaultProgramFolder is the default folder for SSM
 var DefaultProgramFolder = "/etc/amazon/ssm/"
 var DefaultDocumentWorker = "/usr/bin/ssm-document-worker"
+var DefaultSessionWorker = "/usr/bin/ssm-session-worker"
+var DefaultSessionLogger = "/usr/bin/ssm-session-logger"
 
 // AppConfigPath is the path of the AppConfig
 var AppConfigPath = DefaultProgramFolder + AppConfigFileName
@@ -112,7 +114,8 @@ func init() {
 		if _, err := os.Stat("/snap/amazon-ssm-agent/current/ssm-document-worker"); err == nil {
 			DefaultProgramFolder = "/snap/amazon-ssm-agent/current"
 			DefaultDocumentWorker = "/snap/amazon-ssm-agent/current/ssm-document-worker"
-
+			DefaultSessionWorker = "/snap/amazon-ssm-agent/current/ssm-session-worker"
+			DefaultSessionLogger = "/snap/amazon-ssm-agent/current/ssm-session-logger"
 		}
 	}
 }

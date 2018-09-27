@@ -28,6 +28,10 @@ const (
 	CancelCommand DocumentType = "CancelComamnd"
 	// Association represents document type for association
 	Association DocumentType = "Association"
+	// StartSession represents document type for start session
+	StartSession DocumentType = "StartSession"
+	// TerminateSession represents document type for terminate session
+	TerminateSession DocumentType = "TerminateSession"
 	// SendCommandOffline represents document type for send command received from offline service
 	SendCommandOffline DocumentType = "SendCommandOffline"
 	// CancelCommandOffline represents document type for cancel command received from offline service
@@ -56,6 +60,7 @@ type DocumentInfo struct {
 	// DocumentID is a unique name for file system
 	// For Association, DocumentID = AssociationID.RunID
 	// For RunCommand, DocumentID = CommandID
+	// For Session, DocumentId = SessionId
 	DocumentID      string
 	CommandID       string
 	AssociationID   string
@@ -68,12 +73,14 @@ type DocumentInfo struct {
 	DocumentStatus  ResultStatus
 	RunCount        int
 	ProcInfo        OSProcInfo
+	ClientId        string
 }
 
 //CloudWatchConfiguration represents information relevant to command output in cloudWatch
 type CloudWatchConfiguration struct {
-	LogGroupName    string
-	LogStreamPrefix string
+	LogGroupName              string
+	LogStreamPrefix           string
+	LogGroupEncryptionEnabled bool
 }
 
 // IOConfiguration represents information relevant to the output sources of a command

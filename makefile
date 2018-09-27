@@ -131,6 +131,9 @@ ifeq ($(BRAZIL_BUILD), true)
 	@echo "Update riputil file during pre-release"
 	$(COPY) $(BGO_SPACE)/../../env/RIPStaticConfig-1.4/runtime/configuration/rip/rip_static_config.json $(BGO_SPACE)/agent/s3util
 	go run $(BGO_SPACE)/agent/s3util/generator/riputil-gen.go
+
+	$(COPY) $(BGO_SPACE)/../../env/RIPStaticConfig-1.4/runtime/configuration/rip/rip_static_config.json $(BGO_SPACE)/agent/rip
+	go run $(BGO_SPACE)/agent/rip/generator/rip-gen.go
 endif
 
 .PHONY: build-linux
@@ -144,6 +147,10 @@ build-linux: checkstyle copy-src pre-build
 		$(BGO_SPACE)/agent/cli-main/cli-main.go
 	GOOS=linux GOARCH=amd64 $(GO_BUILD) -ldflags "-s -w" -o $(BGO_SPACE)/bin/linux_amd64/ssm-document-worker -v \
 							$(BGO_SPACE)/agent/framework/processor/executer/outofproc/worker/main.go
+	GOOS=linux GOARCH=amd64 $(GO_BUILD) -ldflags "-s -w" -o $(BGO_SPACE)/bin/linux_amd64/ssm-session-logger -v \
+                            $(BGO_SPACE)/agent/session/logging/main.go
+	GOOS=linux GOARCH=amd64 $(GO_BUILD) -ldflags "-s -w" -o $(BGO_SPACE)/bin/linux_amd64/ssm-session-worker -v \
+    						$(BGO_SPACE)/agent/framework/processor/executer/outofproc/sessionworker/main.go
 
 .PHONY: build-freebsd
 build-freebsd: checkstyle copy-src pre-build
@@ -154,6 +161,10 @@ build-freebsd: checkstyle copy-src pre-build
 			$(BGO_SPACE)/agent/cli-main/cli-main.go
 	GOOS=freebsd GOARCH=amd64 $(GO_BUILD) -ldflags "-s -w" -o $(BGO_SPACE)/bin/freebsd_amd64/ssm-document-worker -v \
 								$(BGO_SPACE)/agent/framework/processor/executer/outofproc/worker/main.go
+	GOOS=freebsd GOARCH=amd64 $(GO_BUILD) -ldflags "-s -w" -o $(BGO_SPACE)/bin/freebsd_amd64/ssm-session-logger -v \
+                                $(BGO_SPACE)/agent/session/logging/main.go
+	GOOS=freebsd GOARCH=amd64 $(GO_BUILD) -ldflags "-s -w" -o $(BGO_SPACE)/bin/freebsd_amd64/ssm-session-worker -v \
+    						    $(BGO_SPACE)/agent/framework/processor/executer/outofproc/sessionworker/main.go
 
 .PHONY: build-darwin
 build-darwin: checkstyle copy-src pre-build
@@ -178,6 +189,10 @@ build-windows: checkstyle copy-src pre-build
 		$(BGO_SPACE)/agent/cli-main/cli-main.go
 	GOOS=windows GOARCH=amd64 $(GO_BUILD) -ldflags "-s -w" -o $(BGO_SPACE)/bin/windows_amd64/ssm-document-worker.exe -v \
 								$(BGO_SPACE)/agent/framework/processor/executer/outofproc/worker/main.go
+	GOOS=windows GOARCH=amd64 $(GO_BUILD) -ldflags "-s -w" -o $(BGO_SPACE)/bin/windows_amd64/ssm-session-logger.exe -v \
+        						$(BGO_SPACE)/agent/session/logging/main.go
+	GOOS=windows GOARCH=amd64 $(GO_BUILD) -ldflags "-s -w" -o $(BGO_SPACE)/bin/windows_amd64/ssm-session-worker.exe -v \
+								$(BGO_SPACE)/agent/framework/processor/executer/outofproc/sessionworker/main.go
 
 .PHONY: build-linux-386
 build-linux-386: checkstyle copy-src pre-build
@@ -190,6 +205,10 @@ build-linux-386: checkstyle copy-src pre-build
 		$(BGO_SPACE)/agent/cli-main/cli-main.go
 	GOOS=linux GOARCH=386 $(GO_BUILD) -ldflags "-s -w" -o $(BGO_SPACE)/bin/linux_386/ssm-document-worker -v \
 								$(BGO_SPACE)/agent/framework/processor/executer/outofproc/worker/main.go
+	GOOS=linux GOARCH=386 $(GO_BUILD) -ldflags "-s -w" -o $(BGO_SPACE)/bin/linux_386/ssm-session-logger -v \
+        						$(BGO_SPACE)/agent/session/logging/main.go
+	GOOS=linux GOARCH=386 $(GO_BUILD) -ldflags "-s -w" -o $(BGO_SPACE)/bin/linux_386/ssm-session-worker -v \
+								$(BGO_SPACE)/agent/framework/processor/executer/outofproc/sessionworker/main.go
 
 .PHONY: build-darwin-386
 build-darwin-386: checkstyle copy-src pre-build
@@ -214,6 +233,10 @@ build-windows-386: checkstyle copy-src pre-build
 		$(BGO_SPACE)/agent/cli-main/cli-main.go
 	GOOS=windows GOARCH=386 go build -ldflags "-s -w" -o $(BGO_SPACE)/bin/windows_386/ssm-document-worker.exe -v \
 								$(BGO_SPACE)/agent/framework/processor/executer/outofproc/worker/main.go
+	GOOS=windows GOARCH=386 go build -ldflags "-s -w" -o $(BGO_SPACE)/bin/windows_386/ssm-session-logger.exe -v \
+        						$(BGO_SPACE)/agent/session/logging/main.go
+	GOOS=windows GOARCH=386 go build -ldflags "-s -w" -o $(BGO_SPACE)/bin/windows_386/ssm-session-worker.exe -v \
+								$(BGO_SPACE)/agent/framework/processor/executer/outofproc/sessionworker/main.go
 
 .PHONY: build-arm
 build-arm: checkstyle copy-src pre-build
@@ -226,6 +249,10 @@ build-arm: checkstyle copy-src pre-build
 		$(BGO_SPACE)/agent/cli-main/cli-main.go
 	GOOS=linux GOARCH=arm GOARM=6 $(GO_BUILD) -ldflags "-s -w" -o $(BGO_SPACE)/bin/linux_arm/ssm-document-worker -v \
 								$(BGO_SPACE)/agent/framework/processor/executer/outofproc/worker/main.go
+	GOOS=linux GOARCH=arm GOARM=6 $(GO_BUILD) -ldflags "-s -w" -o $(BGO_SPACE)/bin/linux_arm/ssm-session-logger -v \
+        						$(BGO_SPACE)/agent/session/logging/main.go
+	GOOS=linux GOARCH=arm GOARM=6 $(GO_BUILD) -ldflags "-s -w" -o $(BGO_SPACE)/bin/linux_arm/ssm-session-worker -v \
+								$(BGO_SPACE)/agent/framework/processor/executer/outofproc/sessionworker/main.go
 
 .PHONY: copy-src
 copy-src:
@@ -266,6 +293,8 @@ prepack-linux:
 	$(COPY) $(BGO_SPACE)/bin/linux_amd64/updater $(BGO_SPACE)/bin/prepacked/linux_amd64/updater
 	$(COPY) $(BGO_SPACE)/bin/linux_amd64/ssm-cli $(BGO_SPACE)/bin/prepacked/linux_amd64/ssm-cli
 	$(COPY) $(BGO_SPACE)/bin/linux_amd64/ssm-document-worker $(BGO_SPACE)/bin/prepacked/linux_amd64/ssm-document-worker
+	$(COPY) $(BGO_SPACE)/bin/linux_amd64/ssm-session-worker $(BGO_SPACE)/bin/prepacked/linux_amd64/ssm-session-worker
+	$(COPY) $(BGO_SPACE)/bin/linux_amd64/ssm-session-logger $(BGO_SPACE)/bin/prepacked/linux_amd64/ssm-session-logger
 	$(COPY) $(BGO_SPACE)/bin/amazon-ssm-agent.json.template $(BGO_SPACE)/bin/prepacked/linux_amd64/amazon-ssm-agent.json.template
 	$(COPY) $(BGO_SPACE)/bin/seelog_unix.xml $(BGO_SPACE)/bin/prepacked/linux_amd64/seelog.xml.template
 	$(COPY) $(BGO_SPACE)/bin/LICENSE $(BGO_SPACE)/bin/prepacked/linux_amd64/LICENSE
@@ -277,6 +306,8 @@ prepack-windows:
 	$(COPY) $(BGO_SPACE)/bin/windows_amd64/updater.exe $(BGO_SPACE)/bin/prepacked/windows_amd64/updater.exe
 	$(COPY) $(BGO_SPACE)/bin/windows_amd64/ssm-cli.exe $(BGO_SPACE)/bin/prepacked/windows_amd64/ssm-cli.exe
 	$(COPY) $(BGO_SPACE)/bin/windows_amd64/ssm-document-worker.exe $(BGO_SPACE)/bin/prepacked/windows_amd64/ssm-document-worker.exe
+	$(COPY) $(BGO_SPACE)/bin/windows_amd64/ssm-session-worker.exe $(BGO_SPACE)/bin/prepacked/windows_amd64/ssm-session-worker.exe
+	$(COPY) $(BGO_SPACE)/bin/windows_amd64/ssm-session-logger.exe $(BGO_SPACE)/bin/prepacked/windows_amd64/ssm-session-logger.exe
 	$(COPY) $(BGO_SPACE)/bin/amazon-ssm-agent.json.template $(BGO_SPACE)/bin/prepacked/windows_amd64/amazon-ssm-agent.json.template
 	$(COPY) $(BGO_SPACE)/bin/seelog_windows.xml.template $(BGO_SPACE)/bin/prepacked/windows_amd64/seelog.xml.template
 	$(COPY) $(BGO_SPACE)/bin/LICENSE $(BGO_SPACE)/bin/prepacked/windows_amd64/LICENSE
@@ -288,6 +319,8 @@ prepack-linux-386:
 	$(COPY) $(BGO_SPACE)/bin/linux_386/updater $(BGO_SPACE)/bin/prepacked/linux_386/updater
 	$(COPY) $(BGO_SPACE)/bin/linux_386/ssm-cli $(BGO_SPACE)/bin/prepacked/linux_386/ssm-cli
 	$(COPY) $(BGO_SPACE)/bin/linux_386/ssm-document-worker $(BGO_SPACE)/bin/prepacked/linux_386/ssm-document-worker
+	$(COPY) $(BGO_SPACE)/bin/linux_386/ssm-session-worker $(BGO_SPACE)/bin/prepacked/linux_386/ssm-session-worker
+	$(COPY) $(BGO_SPACE)/bin/linux_386/ssm-session-logger $(BGO_SPACE)/bin/prepacked/linux_386/ssm-session-logger
 	$(COPY) $(BGO_SPACE)/bin/amazon-ssm-agent.json.template $(BGO_SPACE)/bin/prepacked/linux_386/amazon-ssm-agent.json.template
 	$(COPY) $(BGO_SPACE)/bin/seelog_unix.xml $(BGO_SPACE)/bin/prepacked/linux_386/seelog.xml.template
 	$(COPY) $(BGO_SPACE)/bin/LICENSE $(BGO_SPACE)/bin/prepacked/linux_386/LICENSE
@@ -299,6 +332,8 @@ prepack-windows-386:
 	$(COPY) $(BGO_SPACE)/bin/windows_386/updater.exe $(BGO_SPACE)/bin/prepacked/windows_386/updater.exe
 	$(COPY) $(BGO_SPACE)/bin/windows_386/ssm-cli.exe $(BGO_SPACE)/bin/prepacked/windows_386/ssm-cli.exe
 	$(COPY) $(BGO_SPACE)/bin/windows_386/ssm-document-worker.exe $(BGO_SPACE)/bin/prepacked/windows_386/ssm-document-worker.exe
+	$(COPY) $(BGO_SPACE)/bin/windows_386/ssm-session-worker.exe $(BGO_SPACE)/bin/prepacked/windows_386/ssm-session-worker.exe
+	$(COPY) $(BGO_SPACE)/bin/windows_386/ssm-session-logger.exe $(BGO_SPACE)/bin/prepacked/windows_386/ssm-session-logger.exe
 	$(COPY) $(BGO_SPACE)/bin/amazon-ssm-agent.json.template $(BGO_SPACE)/bin/prepacked/windows_386/amazon-ssm-agent.json.template
 	$(COPY) $(BGO_SPACE)/bin/seelog_windows.xml.template $(BGO_SPACE)/bin/prepacked/windows_386/seelog.xml.template
 	$(COPY) $(BGO_SPACE)/bin/LICENSE $(BGO_SPACE)/bin/prepacked/windows_386/LICENSE

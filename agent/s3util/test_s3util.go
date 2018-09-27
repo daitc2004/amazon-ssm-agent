@@ -81,3 +81,11 @@ func (uploader *MockS3Uploader) UploadS3TestFile(log log.T, bucketName, key stri
 
 	return args.Error(0)
 }
+
+// IsBucketEncrypted mocks the method with the same name.
+func (uploader *MockS3Uploader) IsBucketEncrypted(log log.T, bucketName string) bool {
+	args := uploader.Called(log, bucketName)
+	logger.Debugf("===========MockIsBucketEncrypted Determining if the given s3 bucket has been encrypted - %v returns %v", bucketName, args.Bool(0))
+
+	return args.Bool(0)
+}

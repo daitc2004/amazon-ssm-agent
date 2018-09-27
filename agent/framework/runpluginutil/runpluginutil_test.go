@@ -22,6 +22,9 @@ import (
 	"github.com/aws/amazon-ssm-agent/agent/context"
 	"github.com/aws/amazon-ssm-agent/agent/contracts"
 	"github.com/aws/amazon-ssm-agent/agent/log"
+	mgsContracts "github.com/aws/amazon-ssm-agent/agent/session/contracts"
+	"github.com/aws/amazon-ssm-agent/agent/session/datachannel"
+	datachannelMock "github.com/aws/amazon-ssm-agent/agent/session/datachannel/mocks"
 	"github.com/aws/amazon-ssm-agent/agent/task"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -142,6 +145,92 @@ func TestRunPluginsWithNewDocument(t *testing.T) {
 
 }
 
+// TestRunPluginsForSessionPluginsWithNewDocument tests that RunPlugins with SessionPluginRegistry calls all the expected plugins.
+func TestRunPluginsForSessionPluginsWithNewDocument(t *testing.T) {
+	setIsSupportedMock()
+	defer restoreIsSupported()
+	pluginName := "Standard_Stream"
+	pluginConfigs := make(map[string]contracts.PluginState)
+	pluginResults := make(map[string]*contracts.PluginResult)
+	pluginInstances := make(map[string]*ISessionPlugin)
+	pluginRegistry := SessionPluginRegistry{}
+	var cancelFlag task.CancelFlag = task.NewChanneledCancelFlag()
+
+	ctx := context.NewMockDefault()
+	defaultTime := time.Now()
+	pluginConfigs2 := make([]contracts.PluginState, 1)
+	ioConfig := contracts.IOConfiguration{}
+
+	mockDataChannel := &datachannelMock.IDataChannel{}
+	getDataChannelForSessionPlugin = func(context context.T, sessionId string, clientId string, onMessageHandler func(input []byte)) (datachannel.IDataChannel, error) {
+		return mockDataChannel, nil
+	}
+	mockDataChannel.On("Close", mock.Anything).Return(nil)
+	mockDataChannel.On("SendAgentSessionStateMessage", mock.Anything, mgsContracts.Connected).Return(nil)
+
+	// create an instance of our test object
+	pluginInstances[pluginName] = new(ISessionPlugin)
+
+	// create configuration for execution
+	config := contracts.Configuration{
+		PluginID:   pluginName,
+		PluginName: pluginName,
+	}
+
+	// setup expectations
+	pluginConfigs[pluginName] = contracts.PluginState{
+		Name:          pluginName,
+		Id:            pluginName,
+		Configuration: config,
+	}
+	pluginResults[pluginName] = &contracts.PluginResult{
+		PluginID:      pluginName,
+		PluginName:    pluginName,
+		StartDateTime: defaultTime,
+		EndDateTime:   defaultTime,
+		Output:        "",
+	}
+
+	pluginInstances[pluginName].On("Execute", ctx, pluginConfigs[pluginName].Configuration, mock.Anything, mock.Anything, mock.Anything).Return()
+	pluginInstances[pluginName].On("GetOnMessageHandler", mock.Anything, cancelFlag).Return(func(input []byte) {})
+	pluginFactory := new(ISessionPluginFactory)
+	pluginFactory.On("Create", mock.Anything).Return(pluginInstances[pluginName], nil)
+	pluginRegistry[pluginName] = pluginFactory
+
+	pluginConfigs2[0] = pluginConfigs[pluginName]
+
+	called := 0
+
+	ch := make(chan contracts.PluginResult)
+	go func() {
+		for result := range ch {
+			result.EndDateTime = defaultTime
+			result.StartDateTime = defaultTime
+			if called == 0 {
+				assert.Equal(t, result, *pluginResults[pluginName])
+			} else {
+				assert.Fail(t, "there shouldn't be more than 1 update")
+			}
+			called++
+		}
+	}()
+	// call the code we are testing
+	outputs := RunPlugins(ctx, pluginConfigs2, ioConfig, pluginRegistry, ch, cancelFlag)
+	close(ch)
+
+	// fix the times expectation.
+	for _, result := range outputs {
+		result.EndDateTime = defaultTime
+		result.StartDateTime = defaultTime
+	}
+
+	pluginInstances[pluginName].AssertExpectations(t)
+	assert.Equal(t, pluginResults[pluginName], outputs[pluginName])
+	assert.Equal(t, pluginResults, outputs)
+	pluginFactory.AssertExpectations(t)
+	mockDataChannel.AssertExpectations(t)
+}
+
 // Document with steps containing unknown plugin (i.e. when plugin handler is not found), steps must fail
 func TestRunPluginsWithMissingPluginHandler(t *testing.T) {
 	setIsSupportedMock()
@@ -178,7 +267,7 @@ func TestRunPluginsWithMissingPluginHandler(t *testing.T) {
 			Configuration: config,
 		}
 
-		pluginError := fmt.Errorf("Plugin with name %s not found. Step name: %s", name, name)
+		pluginError := fmt.Sprintf("Plugin with name %s not found. Step name: %s", name, name)
 
 		pluginResults[name] = &contracts.PluginResult{
 			PluginName:     name,
@@ -879,7 +968,7 @@ func TestRunPluginsWithMoreThanOnePrecondition(t *testing.T) {
 			Configuration: config,
 		}
 
-		pluginError := fmt.Errorf(
+		pluginError := fmt.Sprintf(
 			"Unrecognized precondition(s): '\"foo\": [operand1 operand2]', please update agent to latest version. Step name: %s",
 			name)
 
@@ -974,7 +1063,7 @@ func TestRunPluginsWithUnrecognizedPreconditionOperator(t *testing.T) {
 			Configuration: config,
 		}
 
-		pluginError := fmt.Errorf(
+		pluginError := fmt.Sprintf(
 			"Unrecognized precondition(s): '\"foo\": [platformType Linux]', please update agent to latest version. Step name: %s",
 			name)
 
@@ -1070,7 +1159,7 @@ func TestRunPluginsWithUnrecognizedPreconditionOperand(t *testing.T) {
 			Configuration: config,
 		}
 
-		pluginError := fmt.Errorf(
+		pluginError := fmt.Sprintf(
 			"Unrecognized precondition(s): '\"StringEquals\": [foo Linux]', please update agent to latest version. Step name: %s",
 			name)
 
@@ -1167,7 +1256,7 @@ func TestRunPluginsWithUnrecognizedPreconditionDuplicateVariable(t *testing.T) {
 			Configuration: config,
 		}
 
-		pluginError := fmt.Errorf(
+		pluginError := fmt.Sprintf(
 			"Unrecognized precondition(s): '\"StringEquals\": [platformType platformType]', please update agent to latest version. Step name: %s",
 			name)
 
@@ -1264,7 +1353,7 @@ func TestRunPluginsWithMoreThanTwoPreconditionOperands(t *testing.T) {
 			Configuration: config,
 		}
 
-		pluginError := fmt.Errorf(
+		pluginError := fmt.Sprintf(
 			"Unrecognized precondition(s): '\"StringEquals\": [platformType Linux foo]', please update agent to latest version. Step name: %s",
 			name)
 
@@ -1364,7 +1453,7 @@ func TestRunPluginsWithUnknownPlugin(t *testing.T) {
 		}
 
 		if name == testUnknownPlugin {
-			pluginError := fmt.Errorf(
+			pluginError := fmt.Sprintf(
 				"Plugin with name %s is not supported by this version of ssm agent, please update to latest version. Step name: %s",
 				name,
 				name)
