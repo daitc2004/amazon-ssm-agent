@@ -20,12 +20,9 @@ import (
 	"github.com/aws/amazon-ssm-agent/agent/context"
 	"github.com/aws/amazon-ssm-agent/agent/contracts"
 	executermock "github.com/aws/amazon-ssm-agent/agent/framework/processor/executer/mock"
-	"github.com/aws/amazon-ssm-agent/agent/framework/runpluginutil"
-	runnermock "github.com/aws/amazon-ssm-agent/agent/framework/runpluginutil/mocks"
 	"github.com/aws/amazon-ssm-agent/agent/log"
 	"github.com/aws/amazon-ssm-agent/agent/task"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 )
 
 var logger = log.NewMockLog()
@@ -92,6 +89,7 @@ func testBasicExecuter(t *testing.T, testCase TestCase) {
 
 	// call method under test
 	//orchestrationRootDir is set to empty such that it can meet the test expectation.
+	e := NewBasicExecuter(context.NewMockDefault())
 
 	nStatusReceived := 0
 
@@ -102,17 +100,8 @@ func testBasicExecuter(t *testing.T, testCase TestCase) {
 	resultState.InstancePluginsInformation[0].Result = *testCase.PluginResults["plugin1"]
 	dataStoreMock.On("Load").Return(state)
 	dataStoreMock.On("Save", resultState).Return()
-	pluginManagerMock := new(runnermock.IPluginManager)
-	pluginManagerMock.On("RunPlugins",
-		mock.AnythingOfType("*context.Mock"),
-		mock.AnythingOfType("[]contracts.PluginState"),
-		mock.AnythingOfType("contracts.IOConfiguration"),
-		mock.AnythingOfType("runpluginutil.PluginRegistry"),
-		mock.AnythingOfType("chan contracts.PluginResult"),
-		mock.AnythingOfType("*task.ChanneledCancelFlag")).Return(func(context context.T,
-		plugins []contracts.PluginState,
-		ioConfig contracts.IOConfiguration,
-		pluginRegistry runpluginutil.PluginRegistry,
+	pluginRunner = func(context context.T,
+		docState contracts.DocumentState,
 		resChan chan contracts.PluginResult,
 		cancelFlag task.CancelFlag) map[string]*contracts.PluginResult {
 		outputs := make(map[string]*contracts.PluginResult)
@@ -121,11 +110,6 @@ func testBasicExecuter(t *testing.T, testCase TestCase) {
 			outputs[pluginState.Id] = testCase.PluginResults[pluginState.Id]
 		}
 		return outputs
-	}, nil)
-
-	e := &BasicExecuter{
-		ctx:           context.NewMockDefault(),
-		pluginManager: pluginManagerMock,
 	}
 
 	resChan := e.Run(cancelFlag, dataStoreMock)

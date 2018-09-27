@@ -18,7 +18,6 @@ import (
 )
 
 type Backend messaging.MessagingBackend
-type ProcessCreator func(name string, argv []string) (proc.OSProcess, error)
 
 //see differences between zombie and orphan: https://www.gmarik.info/blog/2012/orphan-vs-zombie-vs-daemon-processes/
 const (
@@ -30,10 +29,9 @@ const (
 
 type OutOfProcExecuter struct {
 	basicexecuter.BasicExecuter
-	docState       *contracts.DocumentState
-	ctx            context.T
-	cancelFlag     task.CancelFlag
-	processCreator ProcessCreator
+	docState   *contracts.DocumentState
+	ctx        context.T
+	cancelFlag task.CancelFlag
 }
 
 var channelCreator = func(log log.T, mode channel.Mode, documentID string) (channel.Channel, error, bool) {
@@ -50,18 +48,14 @@ var processFinder = func(log log.T, procinfo contracts.OSProcInfo) bool {
 	return proc.IsProcessExists(log, procinfo.Pid, procinfo.StartTime)
 }
 
-func NewOutOfProcExecuter(ctx context.T) *OutOfProcExecuter {
-	processCreator := func(name string, argv []string) (proc.OSProcess, error) {
-		return proc.StartProcess(name, argv)
-	}
-	return NewOutOfProcExecuterWithProcessCreator(ctx, processCreator, basicexecuter.NewBasicExecuter(ctx))
+var processCreator = func(name string, argv []string) (proc.OSProcess, error) {
+	return proc.StartProcess(name, argv)
 }
 
-func NewOutOfProcExecuterWithProcessCreator(ctx context.T, processCreator ProcessCreator, basicExecuter *basicexecuter.BasicExecuter) *OutOfProcExecuter {
+func NewOutOfProcExecuter(ctx context.T) *OutOfProcExecuter {
 	return &OutOfProcExecuter{
-		BasicExecuter:  *basicExecuter,
-		ctx:            ctx.With("[OutOfProcExecuter]"),
-		processCreator: processCreator,
+		BasicExecuter: *basicexecuter.NewBasicExecuter(ctx),
+		ctx:           ctx.With("[OutOfProcExecuter]"),
 	}
 }
 
@@ -173,7 +167,7 @@ func (e *OutOfProcExecuter) initialize(stopTimer chan bool) (ipc channel.Channel
 	} else {
 		log.Debug("channel not found, starting a new process...")
 		var process proc.OSProcess
-		if process, err = e.processCreator(appconfig.DefaultDocumentWorker, proc.FormArgv(documentID)); err != nil {
+		if process, err = processCreator(appconfig.DefaultDocumentWorker, proc.FormArgv(documentID)); err != nil {
 			log.Errorf("start process: %v error: %v", appconfig.DefaultDocumentWorker, err)
 			//make sure close the channel
 			ipc.Destroy()

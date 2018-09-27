@@ -24,18 +24,17 @@ import (
 
 	"github.com/aws/amazon-ssm-agent/agent/context"
 	"github.com/aws/amazon-ssm-agent/agent/contracts"
-	"github.com/aws/amazon-ssm-agent/agent/framework/processor/executer/basicexecuter"
 	executermocks "github.com/aws/amazon-ssm-agent/agent/framework/processor/executer/mock"
 	"github.com/aws/amazon-ssm-agent/agent/framework/processor/executer/outofproc/channel"
 	channelmock "github.com/aws/amazon-ssm-agent/agent/framework/processor/executer/outofproc/channel/mock"
 	"github.com/aws/amazon-ssm-agent/agent/framework/processor/executer/outofproc/messaging"
 	"github.com/aws/amazon-ssm-agent/agent/framework/processor/executer/outofproc/proc"
-	"github.com/aws/amazon-ssm-agent/agent/framework/runpluginutil"
 	"github.com/aws/amazon-ssm-agent/agent/log"
 	"github.com/aws/amazon-ssm-agent/agent/task"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 )
+
+var pluginRunner messaging.PluginRunner
 
 // At integ_test, procController is a singleton that represents an entire lifecycle of a child process
 var fakeProcess *FakeProcess
@@ -57,7 +56,18 @@ func setup(t *testing.T) *TestCase {
 		t.Fatalf("process already exists: %v", fakeProcess)
 	}
 	fakeProcess = NewFakeProcess(t)
-
+	processCreator = func(name string, argv []string) (proc.OSProcess, error) {
+		//fakeProcess is imposed as singleton here
+		if fakeProcess.live {
+			t.Fatalf("start process repeatedly, already exists: %v", fakeProcess)
+		}
+		fakeProcess.live = true
+		fakeProcess.attached = true
+		docID := argv[0]
+		//launc a faked worker
+		go fakeProcess.fakeWorker(fakeProcess.t, docID)
+		return fakeProcess, nil
+	}
 	processFinder = func(log log.T, procinfo contracts.OSProcInfo) bool {
 		assert.Equal(t, testPid, procinfo.Pid)
 		return fakeProcess != nil && fakeProcess.live
@@ -74,26 +84,6 @@ func teardown(t *testing.T) {
 	assert.False(t, channelmock.IsExists(testDocumentID))
 }
 
-func newTestOutOfProcExecuter(t *testing.T, testCase *TestCase) *OutOfProcExecuter {
-	processCreator := func(name string, argv []string) (proc.OSProcess, error) {
-		//fakeProcess is imposed as singleton here
-		if fakeProcess.live {
-			t.Fatalf("start process repeatedly, already exists: %v", fakeProcess)
-		}
-		fakeProcess.live = true
-		fakeProcess.attached = true
-		docID := argv[0]
-		//launc a faked worker
-		go fakeProcess.fakeWorker(fakeProcess.t, docID, testCase.pluginManagerMock)
-		return fakeProcess, nil
-	}
-	return &OutOfProcExecuter{
-		BasicExecuter:  *basicexecuter.NewBasicExecuter(testCase.context),
-		ctx:            testCase.context.With("[OutOfProcExecuter]"),
-		processCreator: processCreator,
-	}
-}
-
 func TestOutOfProcExecuter_Success(t *testing.T) {
 	testCase := setup(t)
 	testDocState := testCase.docState
@@ -104,25 +94,20 @@ func TestOutOfProcExecuter_Success(t *testing.T) {
 	resultDocState.DocumentInformation.ProcInfo.Pid = testPid
 	resultDocState.DocumentInformation.ProcInfo.StartTime = testStartDateTime
 	//using the real constructor
-	outofprocExe := newTestOutOfProcExecuter(t, testCase)
+	outofprocExe := NewOutOfProcExecuter(testCase.context)
 	testCase.docStore.On("Load").Return(testDocState)
 	testCase.docStore.On("Save", resultDocState).Return(nil)
-	testCase.pluginManagerMock.On("RunPlugins",
-		mock.AnythingOfType("*context.Mock"),
-		mock.AnythingOfType("[]contracts.PluginState"),
-		mock.AnythingOfType("contracts.IOConfiguration"),
-		mock.AnythingOfType("runpluginutil.PluginRegistry"),
-		mock.AnythingOfType("chan contracts.PluginResult"),
-		mock.AnythingOfType("*task.ChanneledCancelFlag")).Return(func(context context.T,
-		plugins []contracts.PluginState,
-		ioConfig contracts.IOConfiguration,
-		pluginRegistry runpluginutil.PluginRegistry,
+	pluginRunner = func(
+		context context.T,
+		docState contracts.DocumentState,
 		resChan chan contracts.PluginResult,
-		cancelFlag task.CancelFlag) map[string]*contracts.PluginResult {
+		cancelFlag task.CancelFlag,
+	) {
+		//then start to send reply
 		resChan <- *testCase.results["plugin1"]
 		resChan <- *testCase.results["plugin2"]
-		return make(map[string]*contracts.PluginResult)
-	}, nil)
+		close(resChan)
+	}
 	cancelFlag := task.NewChanneledCancelFlag()
 	resChan := outofprocExe.Run(cancelFlag, testCase.docStore)
 	//Plugin1 update
@@ -179,27 +164,21 @@ func TestOutOfProcExecuter_ShutdownAndReconnect(t *testing.T) {
 
 	masterCancelFlag := task.NewChanneledCancelFlag()
 	masterClosed := make(chan bool)
-	testCase.pluginManagerMock.On("RunPlugins",
-		mock.AnythingOfType("*context.Mock"),
-		mock.AnythingOfType("[]contracts.PluginState"),
-		mock.AnythingOfType("contracts.IOConfiguration"),
-		mock.AnythingOfType("runpluginutil.PluginRegistry"),
-		mock.AnythingOfType("chan contracts.PluginResult"),
-		mock.AnythingOfType("*task.ChanneledCancelFlag")).Return(func(context context.T,
-		plugins []contracts.PluginState,
-		ioConfig contracts.IOConfiguration,
-		pluginRegistry runpluginutil.PluginRegistry,
+	pluginRunner = func(
+		context context.T,
+		docState contracts.DocumentState,
 		resChan chan contracts.PluginResult,
-		cancelFlag task.CancelFlag) map[string]*contracts.PluginResult {
+		cancelFlag task.CancelFlag,
+	) {
 		//wait for master to shutdown
 		<-masterClosed
 		//then start to send reply
 		resChan <- *testCase.results["plugin1"]
 		resChan <- *testCase.results["plugin2"]
-		return make(map[string]*contracts.PluginResult)
-	}, nil)
+		close(resChan)
+	}
 	logger.Info("launching out-of-proc Executer...")
-	outofprocExe := newTestOutOfProcExecuter(t, testCase)
+	outofprocExe := NewOutOfProcExecuter(testCase.context)
 	resChan := outofprocExe.Run(masterCancelFlag, testCase.docStore)
 	logger.Info("shutting down the out-of-proc Executer...")
 	masterCancelFlag.Set(task.ShutDown)
@@ -227,8 +206,7 @@ func TestOutOfProcExecuter_ShutdownAndReconnect(t *testing.T) {
 	newDocStore.On("Load").Return(docState1)
 	newDocStore.On("Save", resultDocState).Return(nil)
 	newContext := context.NewMockDefaultWithContext([]string{"NEWMASTER"})
-	testCase.context = newContext
-	newOutofProcExe := newTestOutOfProcExecuter(t, testCase)
+	newOutofProcExe := NewOutOfProcExecuter(newContext)
 	newResChan := newOutofProcExe.Run(newCancelFlag, newDocStore)
 	//plugin1 update
 	res := <-newResChan
@@ -285,29 +263,23 @@ func TestOutOfProcExecuter_Cancel(t *testing.T) {
 	resultDocState.DocumentInformation.DocumentStatus = contracts.ResultStatusCancelled
 	resultDocState.DocumentInformation.ProcInfo.Pid = testPid
 	resultDocState.DocumentInformation.ProcInfo.StartTime = testStartDateTime
-	outofprocExe := newTestOutOfProcExecuter(t, testCase)
+	outofprocExe := NewOutOfProcExecuter(testCase.context)
 	testCase.docStore.On("Load").Return(testDocState)
 	testCase.docStore.On("Save", resultDocState).Return(nil)
-	testCase.pluginManagerMock.On("RunPlugins",
-		mock.AnythingOfType("*context.Mock"),
-		mock.AnythingOfType("[]contracts.PluginState"),
-		mock.AnythingOfType("contracts.IOConfiguration"),
-		mock.AnythingOfType("runpluginutil.PluginRegistry"),
-		mock.AnythingOfType("chan contracts.PluginResult"),
-		mock.AnythingOfType("*task.ChanneledCancelFlag")).Return(func(context context.T,
-		plugins []contracts.PluginState,
-		ioConfig contracts.IOConfiguration,
-		pluginRegistry runpluginutil.PluginRegistry,
+	pluginRunner = func(
+		context context.T,
+		docState contracts.DocumentState,
 		resChan chan contracts.PluginResult,
-		cancelFlag task.CancelFlag) map[string]*contracts.PluginResult {
+		cancelFlag task.CancelFlag,
+	) {
 		//make sure the cancelflag is well received
 		cancelFlag.Wait()
 		assert.True(t, cancelFlag.Canceled())
 		//then start to send reply
 		resChan <- *testCase.results["plugin1"]
 		resChan <- *testCase.results["plugin2"]
-		return make(map[string]*contracts.PluginResult)
-	}, nil)
+		close(resChan)
+	}
 	logger.Info("launching out-of-proc Executer...")
 	masterCancelFlag := task.NewChanneledCancelFlag()
 	resChan := outofprocExe.Run(masterCancelFlag, testCase.docStore)
@@ -363,14 +335,14 @@ func NewFakeProcess(t *testing.T) *FakeProcess {
 }
 
 //replicate the same procedure as the worker main function
-func (p *FakeProcess) fakeWorker(t *testing.T, handle string, pluginManager runpluginutil.IPluginManager) {
+func (p *FakeProcess) fakeWorker(t *testing.T, handle string) {
 	ctx := context.NewMockDefaultWithContext([]string{"FAKE-DOCUMENT-WORKER"})
 	log := ctx.Log()
 	log.Infof("document: %v process started", handle)
 	//make sure the channel name is correct
 	assert.Equal(t, testDocumentID, handle)
 	ipc := channelmock.NewFakeChannel(logger, channel.ModeWorker, handle)
-	pipeline := messaging.NewWorkerBackend(ctx, pluginManager)
+	pipeline := messaging.NewWorkerBackend(ctx, pluginRunner)
 	stopTimer := make(chan bool)
 	if err := messaging.Messaging(log, ipc, pipeline, stopTimer); err != nil {
 		t.Fatalf("worker process messaging encountered error: %v", err)

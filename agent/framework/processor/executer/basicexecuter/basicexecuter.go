@@ -29,16 +29,22 @@ import (
 //TODO currently BasicExecuter.Run() is not idempotent, we should make it so in future
 // BasicExecuter is a thin wrapper over runPlugins().
 type BasicExecuter struct {
-	resChan       chan contracts.DocumentResult
-	ctx           context.T
-	pluginManager runpluginutil.IPluginManager
+	resChan chan contracts.DocumentResult
+	ctx     context.T
+}
+
+var pluginRunner = func(context context.T,
+	docState contracts.DocumentState,
+	resChan chan contracts.PluginResult,
+	cancelFlag task.CancelFlag) (pluginOutputs map[string]*contracts.PluginResult) {
+	return runpluginutil.RunPlugins(context, docState.InstancePluginsInformation, docState.IOConfig, runpluginutil.SSMPluginRegistry, resChan, cancelFlag)
+
 }
 
 func run(context context.T,
 	docStore executer.DocumentStore,
 	resChan chan contracts.DocumentResult,
-	cancelFlag task.CancelFlag,
-	pluginManager runpluginutil.IPluginManager) {
+	cancelFlag task.CancelFlag) {
 	defer func() {
 		if msg := recover(); msg != nil {
 			context.Log().Errorf("Executer run panic: %v", msg)
@@ -83,7 +89,7 @@ func run(context context.T,
 		}
 	}(&docState)
 
-	outputs := pluginManager.RunPlugins(context, docState.InstancePluginsInformation, docState.IOConfig, runpluginutil.SSMPluginRegistry, statusChan, cancelFlag)
+	outputs := pluginRunner(context, docState, statusChan, cancelFlag)
 	close(statusChan)
 	//make sure the launched go routine has finshed before sending the final response
 	wg.Wait()
@@ -113,8 +119,7 @@ func run(context context.T,
 // using a pointer so that it can be shared among multiple threads(go-routines)
 func NewBasicExecuter(context context.T) *BasicExecuter {
 	return &BasicExecuter{
-		ctx:           context.With("[BasicExecuter]"),
-		pluginManager: runpluginutil.NewPluginManager(),
+		ctx: context.With("[BasicExecuter]"),
 	}
 }
 
@@ -129,6 +134,6 @@ func (e *BasicExecuter) Run(
 	e.resChan = make(chan contracts.DocumentResult, nPlugins)
 
 	log.Debug("Running plugins...")
-	go run(e.ctx, docStore, e.resChan, cancelFlag, e.pluginManager)
+	go run(e.ctx, docStore, e.resChan, cancelFlag)
 	return e.resChan
 }

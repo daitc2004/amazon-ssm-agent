@@ -3,16 +3,13 @@ package messaging
 import (
 	"testing"
 
-	"time"
-
 	"github.com/aws/amazon-ssm-agent/agent/context"
 	"github.com/aws/amazon-ssm-agent/agent/contracts"
-	"github.com/aws/amazon-ssm-agent/agent/framework/runpluginutil"
-	runnermock "github.com/aws/amazon-ssm-agent/agent/framework/runpluginutil/mocks"
+
+	"time"
 
 	"github.com/aws/amazon-ssm-agent/agent/task"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 )
 
 var contextMock = context.NewMockDefault()
@@ -33,16 +30,14 @@ var testPluginsRawJSON string
 var testCancelRawJSON string
 
 type TestCase struct {
-	context           *context.Mock
-	docState          contracts.DocumentState
-	results           map[string]*contracts.PluginResult
-	pluginManagerMock *runnermock.IPluginManager
-	resultStatus      contracts.ResultStatus
+	context      *context.Mock
+	docState     contracts.DocumentState
+	results      map[string]*contracts.PluginResult
+	resultStatus contracts.ResultStatus
 }
 
 func CreateTestCase() *TestCase {
 	contextMock := context.NewMockDefaultWithContext([]string{"MASTER"})
-	pluginManagerMock := new(runnermock.IPluginManager)
 	docInfo := contracts.DocumentInfo{
 		CreatedDate:     "2017-06-10T01-23-07.853Z",
 		MessageID:       testMessageID,
@@ -96,11 +91,10 @@ func CreateTestCase() *TestCase {
 	testUnknownTypeRawJSON2 = "a very bad string"
 	testCancelRawJSON = "{\"version\":\"1.0\",\"type\":\"cancel\",\"content\":\"\"}"
 	return &TestCase{
-		context:           contextMock,
-		docState:          docState,
-		results:           results,
-		pluginManagerMock: pluginManagerMock,
-		resultStatus:      contracts.ResultStatusSuccess,
+		context:      contextMock,
+		docState:     docState,
+		results:      results,
+		resultStatus: contracts.ResultStatusSuccess,
 	}
 }
 
@@ -195,33 +189,31 @@ func TestExecuterBackend_ProcessUnsupportedVersion(t *testing.T) {
 }
 
 func TestWorkerBackend_ProcessCancelV1(t *testing.T) {
-	testCase := CreateTestCase()
+	_ = CreateTestCase()
 	inputChan := make(chan string, 10)
 	cancelFlag := new(task.MockCancelFlag)
 	cancelFlag.On("Set", task.Canceled).Return(nil)
 	isRunnerCalled := false
-	testCase.pluginManagerMock.On("RunPlugins",
-		mock.AnythingOfType("*context.Mock"),
-		mock.AnythingOfType("[]contracts.PluginState"),
-		mock.AnythingOfType("contracts.IOConfiguration"),
-		mock.AnythingOfType("runpluginutil.PluginRegistry"),
-		mock.AnythingOfType("chan contracts.PluginResult"),
-		mock.AnythingOfType("*task.MockCancelFlag")).Return(func(context context.T,
-		plugins []contracts.PluginState,
-		ioConfig contracts.IOConfiguration,
-		pluginRegistry runpluginutil.PluginRegistry,
+	pluginRunner := func(
+		context context.T,
+		docState contracts.DocumentState,
 		resChan chan contracts.PluginResult,
-		cancelFlag task.CancelFlag) map[string]*contracts.PluginResult {
+		cancelFlag task.CancelFlag,
+	) {
 		isRunnerCalled = true
-		return make(map[string]*contracts.PluginResult)
-	}, nil)
+		//assert version 1 message unmashal
+		//TODO update testify package and assert this block: https://github.com/stretchr/testify/issues/317
+		//assert.Equal(t, testCase.docState.InstancePluginsInformation, plugins)
+		//return control to stop the backend
+		close(resChan)
+	}
 	stopChan := make(chan int, 1)
 	backend := WorkerBackend{
-		ctx:           contextMock,
-		input:         inputChan,
-		cancelFlag:    cancelFlag,
-		pluginManager: testCase.pluginManagerMock,
-		stopChan:      stopChan,
+		ctx:        contextMock,
+		input:      inputChan,
+		cancelFlag: cancelFlag,
+		runner:     pluginRunner,
+		stopChan:   stopChan,
 	}
 	backend.Process(testPluginsRawJSON)
 	backend.Process(testCancelRawJSON)

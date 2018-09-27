@@ -120,9 +120,8 @@ func TestRunPluginsWithNewDocument(t *testing.T) {
 			called++
 		}
 	}()
-	pm := NewPluginManager()
 	// call the code we are testing
-	outputs := pm.RunPlugins(ctx, pluginConfigs2, ioConfig, pluginRegistry, ch, cancelFlag)
+	outputs := RunPlugins(ctx, pluginConfigs2, ioConfig, pluginRegistry, ch, cancelFlag)
 	close(ch)
 
 	// fix the times expectation.
@@ -211,10 +210,8 @@ func TestRunPluginsWithMissingPluginHandler(t *testing.T) {
 			called++
 		}
 	}()
-
-	pm := NewPluginManager()
 	// call the code we are testing
-	outputs := pm.RunPlugins(ctx, pluginConfigs2, ioConfig, pluginRegistry, ch, cancelFlag)
+	outputs := RunPlugins(ctx, pluginConfigs2, ioConfig, pluginRegistry, ch, cancelFlag)
 
 	// fix the times expectation.
 	for _, result := range outputs {
@@ -285,8 +282,7 @@ func TestRunPluginsWithCancelFlagShutdown(t *testing.T) {
 
 	ch := make(chan contracts.PluginResult, 2)
 
-	pm := NewPluginManager()
-	outputs := pm.RunPlugins(ctx, pluginStates, ioConfig, pluginRegistry, ch, cancelFlag)
+	outputs := RunPlugins(ctx, pluginStates, ioConfig, pluginRegistry, ch, cancelFlag)
 
 	close(ch)
 
@@ -352,8 +348,7 @@ func TestRunPluginsWithInProgressDocuments(t *testing.T) {
 	}
 
 	ch := make(chan contracts.PluginResult, 2)
-	pm := NewPluginManager()
-	outputs := pm.RunPlugins(ctx, pluginStates, ioConfig, pluginRegistry, ch, cancelFlag)
+	outputs := RunPlugins(ctx, pluginStates, ioConfig, pluginRegistry, ch, cancelFlag)
 	close(ch)
 	// fix the times expectation.
 	for _, result := range outputs {
@@ -465,8 +460,7 @@ func TestRunPluginsWithDuplicatePluginType(t *testing.T) {
 		}
 	}()
 	// call the code we are testing
-	pm := NewPluginManager()
-	outputs := pm.RunPlugins(ctx, pluginConfigs2, ioConfig, pluginRegistry, ch, cancelFlag)
+	outputs := RunPlugins(ctx, pluginConfigs2, ioConfig, pluginRegistry, ch, cancelFlag)
 
 	// fix the times expectation.
 	for _, result := range outputs {
@@ -558,8 +552,7 @@ func TestRunPluginsWithCompatiblePrecondition(t *testing.T) {
 		}
 	}()
 	// call the code we are testing
-	pm := NewPluginManager()
-	outputs := pm.RunPlugins(ctx, pluginConfigs2, ioConfig, pluginRegistry, ch, cancelFlag)
+	outputs := RunPlugins(ctx, pluginConfigs2, ioConfig, pluginRegistry, ch, cancelFlag)
 
 	// fix the times expectation.
 	for _, result := range outputs {
@@ -648,10 +641,8 @@ func TestRunPluginsWithCompatiblePreconditionWithValueFirst(t *testing.T) {
 			called++
 		}
 	}()
-
-	pm := NewPluginManager()
 	// call the code we are testing
-	outputs := pm.RunPlugins(ctx, pluginConfigs2, ioConfig, pluginRegistry, ch, cancelFlag)
+	outputs := RunPlugins(ctx, pluginConfigs2, ioConfig, pluginRegistry, ch, cancelFlag)
 	// fix the times expectation.
 	for _, result := range outputs {
 		result.EndDateTime = defaultTime
@@ -740,8 +731,7 @@ func TestRunPluginsWithIncompatiblePrecondition(t *testing.T) {
 		}
 	}()
 	// call the code we are testing
-	pm := NewPluginManager()
-	outputs := pm.RunPlugins(ctx, pluginConfigs2, ioConfig, pluginRegistry, ch, cancelFlag)
+	outputs := RunPlugins(ctx, pluginConfigs2, ioConfig, pluginRegistry, ch, cancelFlag)
 	// fix the times expectation.
 	for _, result := range outputs {
 		result.EndDateTime = defaultTime
@@ -827,10 +817,8 @@ func TestRunPluginsWithCompatiblePreconditionButMissingPluginHandler(t *testing.
 			called++
 		}
 	}()
-
-	pm := NewPluginManager()
 	// call the code we are testing
-	outputs := pm.RunPlugins(ctx, pluginConfigs2, ioConfig, pluginRegistry, ch, cancelFlag)
+	outputs := RunPlugins(ctx, pluginConfigs2, ioConfig, pluginRegistry, ch, cancelFlag)
 	// fix the times expectation.
 	for _, result := range outputs {
 		result.EndDateTime = defaultTime
@@ -927,10 +915,8 @@ func TestRunPluginsWithMoreThanOnePrecondition(t *testing.T) {
 			called++
 		}
 	}()
-
-	pm := NewPluginManager()
 	// call the code we are testing
-	outputs := pm.RunPlugins(ctx, pluginConfigs2, ioConfig, pluginRegistry, ch, cancelFlag)
+	outputs := RunPlugins(ctx, pluginConfigs2, ioConfig, pluginRegistry, ch, cancelFlag)
 	// fix the times expectation.
 	for _, result := range outputs {
 		result.EndDateTime = defaultTime
@@ -1024,9 +1010,8 @@ func TestRunPluginsWithUnrecognizedPreconditionOperator(t *testing.T) {
 			called++
 		}
 	}()
-	pm := NewPluginManager()
 	// call the code we are testing
-	outputs := pm.RunPlugins(ctx, pluginConfigs2, ioConfig, pluginRegistry, ch, cancelFlag)
+	outputs := RunPlugins(ctx, pluginConfigs2, ioConfig, pluginRegistry, ch, cancelFlag)
 
 	// fix the times expectation.
 	for _, result := range outputs {
@@ -1121,9 +1106,8 @@ func TestRunPluginsWithUnrecognizedPreconditionOperand(t *testing.T) {
 			called++
 		}
 	}()
-	pm := NewPluginManager()
 	// call the code we are testing
-	outputs := pm.RunPlugins(ctx, pluginConfigs2, ioConfig, pluginRegistry, ch, cancelFlag)
+	outputs := RunPlugins(ctx, pluginConfigs2, ioConfig, pluginRegistry, ch, cancelFlag)
 
 	// fix the times expectation.
 	for _, result := range outputs {
@@ -1220,9 +1204,8 @@ func TestRunPluginsWithUnrecognizedPreconditionDuplicateVariable(t *testing.T) {
 			called++
 		}
 	}()
-	pm := NewPluginManager()
 	// call the code we are testing
-	outputs := pm.RunPlugins(ctx, pluginConfigs2, ioConfig, pluginRegistry, ch, cancelFlag)
+	outputs := RunPlugins(ctx, pluginConfigs2, ioConfig, pluginRegistry, ch, cancelFlag)
 
 	// fix the times expectation.
 	for _, result := range outputs {
@@ -1319,8 +1302,7 @@ func TestRunPluginsWithMoreThanTwoPreconditionOperands(t *testing.T) {
 		}
 	}()
 	// call the code we are testing
-	pm := NewPluginManager()
-	outputs := pm.RunPlugins(ctx, pluginConfigs2, ioConfig, pluginRegistry, ch, cancelFlag)
+	outputs := RunPlugins(ctx, pluginConfigs2, ioConfig, pluginRegistry, ch, cancelFlag)
 
 	// fix the times expectation.
 	for _, result := range outputs {
@@ -1426,8 +1408,7 @@ func TestRunPluginsWithUnknownPlugin(t *testing.T) {
 		}
 	}()
 	// call the code we are testing
-	pm := NewPluginManager()
-	outputs := pm.RunPlugins(ctx, pluginConfigs2, ioConfig, pluginRegistry, ch, cancelFlag)
+	outputs := RunPlugins(ctx, pluginConfigs2, ioConfig, pluginRegistry, ch, cancelFlag)
 
 	// fix the times expectation.
 	for _, result := range outputs {
@@ -1507,8 +1488,7 @@ func TestRunPluginSuccessWithNonTruncatedResult(t *testing.T) {
 		}
 	}()
 	// call the code we are testing
-	pm := NewPluginManager()
-	outputs := pm.RunPlugins(ctx, pluginConfigs2, ioConfig, pluginRegistry, ch, cancelFlag)
+	outputs := RunPlugins(ctx, pluginConfigs2, ioConfig, pluginRegistry, ch, cancelFlag)
 
 	for _, result := range outputs {
 		result.EndDateTime = defaultTime

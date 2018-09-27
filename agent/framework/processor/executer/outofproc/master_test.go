@@ -15,20 +15,18 @@ import (
 
 	"github.com/aws/amazon-ssm-agent/agent/appconfig"
 	"github.com/aws/amazon-ssm-agent/agent/framework/processor/executer/outofproc/proc"
-	runnermock "github.com/aws/amazon-ssm-agent/agent/framework/runpluginutil/mocks"
 	"github.com/aws/amazon-ssm-agent/agent/log"
 	"github.com/aws/amazon-ssm-agent/agent/task"
 	"github.com/stretchr/testify/assert"
 )
 
 type TestCase struct {
-	context           *context.Mock
-	docStore          *executermocks.MockDocumentStore
-	docState          contracts.DocumentState
-	processMock       *procmock.MockedOSProcess
-	pluginManagerMock *runnermock.IPluginManager
-	results           map[string]*contracts.PluginResult
-	resultStatus      contracts.ResultStatus
+	context      *context.Mock
+	docStore     *executermocks.MockDocumentStore
+	docState     contracts.DocumentState
+	processMock  *procmock.MockedOSProcess
+	results      map[string]*contracts.PluginResult
+	resultStatus contracts.ResultStatus
 }
 
 var testInstanceID = "i-400e1090"
@@ -47,7 +45,6 @@ func CreateTestCase() *TestCase {
 	contextMock := context.NewMockDefaultWithContext([]string{"MASTER"})
 	docStore := new(executermocks.MockDocumentStore)
 	processMock := new(procmock.MockedOSProcess)
-	pluginManagerMock := new(runnermock.IPluginManager)
 	docInfo := contracts.DocumentInfo{
 		CreatedDate:     "2017-06-10T01-23-07.853Z",
 		MessageID:       testMessageID,
@@ -92,13 +89,12 @@ func CreateTestCase() *TestCase {
 	results["plugin2"] = &result2
 
 	return &TestCase{
-		context:           contextMock,
-		docStore:          docStore,
-		docState:          docState,
-		processMock:       processMock,
-		pluginManagerMock: pluginManagerMock,
-		results:           results,
-		resultStatus:      contracts.ResultStatusSuccess,
+		context:      contextMock,
+		docStore:     docStore,
+		docState:     docState,
+		processMock:  processMock,
+		results:      results,
+		resultStatus: contracts.ResultStatusSuccess,
 	}
 }
 
@@ -110,16 +106,15 @@ func TestInitializeNewProcess(t *testing.T) {
 		assert.Equal(t, testDocumentID, documentID)
 		return channelMock, nil, false
 	}
-	processCreator := func(name string, argv []string) (proc.OSProcess, error) {
+	processCreator = func(name string, argv []string) (proc.OSProcess, error) {
 		assert.Equal(t, name, appconfig.DefaultDocumentWorker)
 		assert.Equal(t, argv, []string{testDocumentID})
 		return testCase.processMock, nil
 	}
 	exe := &OutOfProcExecuter{
-		ctx:            testCase.context,
-		docState:       &testCase.docState,
-		cancelFlag:     task.NewChanneledCancelFlag(),
-		processCreator: processCreator,
+		ctx:        testCase.context,
+		docState:   &testCase.docState,
+		cancelFlag: task.NewChanneledCancelFlag(),
 	}
 	//assert Wait() syscall is called
 	stopTimer := make(chan bool)
@@ -147,16 +142,15 @@ func TestCreateProcessFailed(t *testing.T) {
 		return channelMock, nil, false
 	}
 	var err = errors.New("failed to create process")
-	processCreator := func(name string, argv []string) (proc.OSProcess, error) {
+	processCreator = func(name string, argv []string) (proc.OSProcess, error) {
 		assert.Equal(t, name, appconfig.DefaultDocumentWorker)
 		assert.Equal(t, argv, []string{testDocumentID})
 		return nil, err
 	}
 	exe := &OutOfProcExecuter{
-		ctx:            testCase.context,
-		docState:       &testCase.docState,
-		cancelFlag:     task.NewChanneledCancelFlag(),
-		processCreator: processCreator,
+		ctx:        testCase.context,
+		docState:   &testCase.docState,
+		cancelFlag: task.NewChanneledCancelFlag(),
 	}
 	//assert Wait() syscall is called
 	stopTimer := make(chan bool)
@@ -173,7 +167,7 @@ func TestInitializeProcessUnexpectedExited(t *testing.T) {
 		assert.Equal(t, testDocumentID, documentID)
 		return channelMock, nil, false
 	}
-	processCreator := func(name string, argv []string) (proc.OSProcess, error) {
+	processCreator = func(name string, argv []string) (proc.OSProcess, error) {
 		assert.Equal(t, name, appconfig.DefaultDocumentWorker)
 		assert.Equal(t, argv, []string{testDocumentID})
 		return testCase.processMock, nil
@@ -181,10 +175,9 @@ func TestInitializeProcessUnexpectedExited(t *testing.T) {
 	cancel := task.NewChanneledCancelFlag()
 	var err = errors.New("process exited with status 1")
 	exe := &OutOfProcExecuter{
-		ctx:            testCase.context,
-		docState:       &testCase.docState,
-		cancelFlag:     cancel,
-		processCreator: processCreator,
+		ctx:        testCase.context,
+		docState:   &testCase.docState,
+		cancelFlag: cancel,
 	}
 	testCase.processMock.On("Wait").Return(err)
 	testCase.processMock.On("Pid").Return(testPid)
@@ -237,7 +230,7 @@ func TestInitializeConnectOldOrphan(t *testing.T) {
 	}
 	//make sure not create new process
 	isCreateCalled := false
-	processCreator := func(name string, argv []string) (proc.OSProcess, error) {
+	processCreator = func(name string, argv []string) (proc.OSProcess, error) {
 		isCreateCalled = true
 		return testCase.processMock, nil
 	}
@@ -249,10 +242,9 @@ func TestInitializeConnectOldOrphan(t *testing.T) {
 	}
 	cancel := task.NewChanneledCancelFlag()
 	exe := &OutOfProcExecuter{
-		ctx:            testCase.context,
-		docState:       &testCase.docState,
-		cancelFlag:     cancel,
-		processCreator: processCreator,
+		ctx:        testCase.context,
+		docState:   &testCase.docState,
+		cancelFlag: cancel,
 	}
 	stopTimer := make(chan bool)
 	_, err := exe.initialize(stopTimer)

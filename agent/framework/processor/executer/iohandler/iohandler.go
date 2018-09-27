@@ -25,7 +25,6 @@ import (
 	"github.com/aws/amazon-ssm-agent/agent/framework/processor/executer/iohandler/iomodule"
 	"github.com/aws/amazon-ssm-agent/agent/framework/processor/executer/iohandler/multiwriter"
 	"github.com/aws/amazon-ssm-agent/agent/log"
-	"github.com/aws/amazon-ssm-agent/agent/s3util"
 )
 
 const (
@@ -100,10 +99,9 @@ type DefaultIOHandler struct {
 	ExitCode int
 	Status   contracts.ResultStatus
 	//private members - not exposed directly to plugins because they shouldn't write to these
-	stdout        string
-	stderr        string
-	ioConfig      contracts.IOConfiguration
-	s3UtilCreator s3util.S3UtilCreator
+	stdout   string
+	stderr   string
+	ioConfig contracts.IOConfiguration
 	//refreshassociation and invoker write a different output rather than merging stdout and stderr
 	output interface{}
 
@@ -113,18 +111,11 @@ type DefaultIOHandler struct {
 }
 
 // NewDefaultIOHandler returns a new instance of the IOHandler
-func NewDefaultIOHandler(logger log.T, ioConfig contracts.IOConfiguration) *DefaultIOHandler {
-	s3Creator := func(l log.T, bucketName string) s3util.IAmazonS3Util {
-		return s3util.NewAmazonS3Util(l, bucketName)
-	}
-	return NewDefaultIOHandlerWithS3Creator(logger, ioConfig, s3Creator)
-}
-
-func NewDefaultIOHandlerWithS3Creator(log log.T, ioConfig contracts.IOConfiguration, s3Creator s3util.S3UtilCreator) *DefaultIOHandler {
+func NewDefaultIOHandler(log log.T, ioConfig contracts.IOConfiguration) *DefaultIOHandler {
 	log.Debugf("IOHandler Initialization with config: %v", ioConfig)
 	out := new(DefaultIOHandler)
 	out.ioConfig = ioConfig
-	out.s3UtilCreator = s3Creator
+
 	return out
 }
 
@@ -157,7 +148,6 @@ func (out *DefaultIOHandler) Init(log log.T, filePath ...string) {
 
 	// Initialize file output module
 	stdoutFile := iomodule.File{
-		S3UtilCreator:          out.s3UtilCreator,
 		FileName:               pluginConfig.StdoutFileName,
 		OrchestrationDirectory: fullPath,
 		OutputS3BucketName:     out.ioConfig.OutputS3BucketName,
@@ -180,7 +170,6 @@ func (out *DefaultIOHandler) Init(log log.T, filePath ...string) {
 
 	// Initialize file error module
 	stderrFile := iomodule.File{
-		S3UtilCreator:          out.s3UtilCreator,
 		FileName:               pluginConfig.StderrFileName,
 		OrchestrationDirectory: fullPath,
 		OutputS3BucketName:     out.ioConfig.OutputS3BucketName,

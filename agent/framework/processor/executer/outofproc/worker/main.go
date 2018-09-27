@@ -6,6 +6,7 @@ import (
 
 	"github.com/aws/amazon-ssm-agent/agent/appconfig"
 	"github.com/aws/amazon-ssm-agent/agent/context"
+	"github.com/aws/amazon-ssm-agent/agent/contracts"
 	"github.com/aws/amazon-ssm-agent/agent/framework/processor/executer/outofproc/channel"
 	"github.com/aws/amazon-ssm-agent/agent/framework/processor/executer/outofproc/messaging"
 	"github.com/aws/amazon-ssm-agent/agent/framework/processor/executer/outofproc/proc"
@@ -14,12 +15,24 @@ import (
 	"github.com/aws/amazon-ssm-agent/agent/log"
 	"github.com/aws/amazon-ssm-agent/agent/log/ssmlog"
 	"github.com/aws/amazon-ssm-agent/agent/platform"
+	"github.com/aws/amazon-ssm-agent/agent/task"
 )
 
 const (
 	defaultCommandTimeoutMax = 172800 * time.Second
 	defaultWorkerContextName = "[ssm-document-worker]"
 )
+
+var pluginRunner = func(
+	context context.T,
+	docState contracts.DocumentState,
+	resChan chan contracts.PluginResult,
+	cancelFlag task.CancelFlag,
+) {
+	runpluginutil.RunPlugins(context, docState.InstancePluginsInformation, docState.IOConfig, runpluginutil.SSMPluginRegistry, resChan, cancelFlag)
+	//make sure to signal the client that job complete
+	close(resChan)
+}
 
 //TODO revisit this, is plugin entitled to use appconfig?
 //TODO add log level to args
@@ -64,8 +77,7 @@ func main() {
 
 	//TODO add command timeout
 	stopTimer := make(chan bool)
-	pluginManager := runpluginutil.NewPluginManager()
-	pipeline := messaging.NewWorkerBackend(ctx, pluginManager)
+	pipeline := messaging.NewWorkerBackend(ctx, pluginRunner)
 	//TODO wait for sigterm or send fail message to the channel?
 	if err = messaging.Messaging(ctx.Log(), ipc, pipeline, stopTimer); err != nil {
 		logger.Errorf("messaging worker encountered error: %v", err)
