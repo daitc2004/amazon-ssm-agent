@@ -69,3 +69,5 @@ var EchoMDSMessage = `{
   "CloudWatchLogGroupName": "",
   "CloudWatchOutputEnabled": "false"
   }`
+
+var EchoMessageOutput = "ship_it"

@@ -16,6 +16,7 @@ package tests
 
 import (
 	"encoding/json"
+	"path"
 	"path/filepath"
 	"runtime/debug"
 	"testing"
@@ -89,6 +90,18 @@ func (suite *CrashWorkerTestSuite) SetupTest() {
 func (suite *CrashWorkerTestSuite) TearDownSuite() {
 	// Close the log only after the all tests are done.
 	suite.log.Close()
+
+	instanceId, _ := platform.InstanceID()
+	//Empty the current folder
+	currentDirectory := filepath.Join(appconfig.DefaultDataStorePath,
+		instanceId,
+		appconfig.DefaultDocumentRootDirName,
+		appconfig.DefaultLocationOfState,
+		appconfig.DefaultLocationOfCurrent)
+	files, _ := fileutil.GetFileNames(currentDirectory)
+	for _, file := range files {
+		fileutil.DeleteFile(path.Join(currentDirectory, file))
+	}
 }
 
 func cleanUpCrashWorkerTest(suite *CrashWorkerTestSuite) {
@@ -102,12 +115,26 @@ func cleanUpCrashWorkerTest(suite *CrashWorkerTestSuite) {
 	suite.log.Flush()
 }
 
-//TestDocumentWorkerCrash tests the agent recovers is the document worker crashes and sends valid results
+//TestDocumentWorkerCrash tests the agent processes documents in isolation
+//the test sends a document that's expected to crash and another that's expected to succeed
+//then verify the first document fails when document worker crashes and sends valid results
+//and second document succeeds and sends the valid output
 func (suite *CrashWorkerTestSuite) TestDocumentWorkerCrash() {
+	//send MDS message that's expected to crash document worker
+	var idOfCrashMessage string
 	suite.mdsSdkMock.On("GetMessagesRequest", mock.AnythingOfType("*ssmmds.GetMessagesInput")).Return(&request.Request{}, func(input *ssmmds.GetMessagesInput) *ssmmds.GetMessagesOutput {
 		messageOutput, _ := testutils.GenerateMessages(testdata.CrashWorkerMDSMessage)
+		idOfCrashMessage = *messageOutput.Messages[0].MessageId
 		return messageOutput
-	}, nil)
+	}, nil).Once()
+
+	//send MDS message that's expected to succeed
+	var idOfGoodMessage string
+	suite.mdsSdkMock.On("GetMessagesRequest", mock.AnythingOfType("*ssmmds.GetMessagesInput")).Return(&request.Request{}, func(input *ssmmds.GetMessagesInput) *ssmmds.GetMessagesOutput {
+		messageOutput, _ := testutils.GenerateMessages(testdata.EchoMDSMessage)
+		idOfGoodMessage = *messageOutput.Messages[0].MessageId
+		return messageOutput
+	}, nil).Once()
 
 	suite.mdsSdkMock.On("GetMessagesRequest", mock.AnythingOfType("*ssmmds.GetMessagesInput")).Return(&request.Request{}, func(input *ssmmds.GetMessagesInput) *ssmmds.GetMessagesOutput {
 		emptyMessage, _ := testutils.GenerateEmptyMessage()
@@ -121,124 +148,82 @@ func (suite *CrashWorkerTestSuite) TestDocumentWorkerCrash() {
 	// a channel to block test execution untill the agent is done processing the required number of messages
 	c := make(chan int)
 	suite.mdsSdkMock.On("SendReplyRequest", mock.AnythingOfType("*ssmmds.SendReplyInput")).Return(&request.Request{}, func(input *ssmmds.SendReplyInput) *ssmmds.SendReplyOutput {
+		messageId := *input.MessageId
 		payload := input.Payload
 		var sendReplyPayload messageContracts.SendReplyPayload
 		json.Unmarshal([]byte(*payload), &sendReplyPayload)
 
-		if sendReplyPayload.DocumentStatus == contracts.ResultStatusFailed {
-			suite.T().Logf("Document execution %v", sendReplyPayload.DocumentStatus)
-			foundPlugin := false
-			for _, pluginStatus := range sendReplyPayload.RuntimeStatus {
-				if pluginStatus.Status == contracts.ResultStatusFailed {
-					foundPlugin = true
-					assert.Contains(suite.T(), pluginStatus.Output, testdata.CrashWorkerErrorMessgae, "plugin output doesn't contain the expected error message")
+		//verify that document worker crashed and agent was able to send back failed result
+		if messageId == idOfCrashMessage {
+			if sendReplyPayload.DocumentStatus == contracts.ResultStatusFailed {
+				suite.T().Logf("Document execution %v", sendReplyPayload.DocumentStatus)
+				foundPlugin := false
+				for _, pluginStatus := range sendReplyPayload.RuntimeStatus {
+					if pluginStatus.Status == contracts.ResultStatusFailed {
+						foundPlugin = true
+						assert.Contains(suite.T(), pluginStatus.Output, testdata.CrashWorkerErrorMessgae, "plugin output doesn't contain the expected error message")
+					}
 				}
+				if !foundPlugin {
+					suite.T().Error("Couldn't find plugin with result status failed")
+				}
+				c <- 1
+			} else if sendReplyPayload.DocumentStatus == contracts.ResultStatusSuccess {
+				suite.T().Errorf("Document execution %v but it was supposed to fail", sendReplyPayload.DocumentStatus)
+				c <- 1
 			}
-			if !foundPlugin {
-				suite.T().Error("Couldn't find plugin with result status failed")
+		}
+		// verify that document execution succeeds in parallel and is not affected by the crashing document
+		if messageId == idOfGoodMessage {
+			if sendReplyPayload.DocumentStatus == contracts.ResultStatusFailed || sendReplyPayload.DocumentStatus == contracts.ResultStatusTimedOut {
+				suite.T().Errorf("Document execution %v", sendReplyPayload.DocumentStatus)
+				c <- 1
+			} else if sendReplyPayload.DocumentStatus == contracts.ResultStatusSuccess {
+				suite.T().Logf("Document execution %v", sendReplyPayload.DocumentStatus)
+				foundPlugin := false
+				for _, pluginStatus := range sendReplyPayload.RuntimeStatus {
+					if pluginStatus.Status == contracts.ResultStatusSuccess {
+						foundPlugin = true
+						assert.Contains(suite.T(), pluginStatus.Output, testdata.EchoMessageOutput, "plugin output doesn't contain the expected error message")
+					}
+				}
+				if !foundPlugin {
+					suite.T().Error("Couldn't find plugin with result status failed")
+				}
+				c <- 1
 			}
-			//Verify that the agent cleans up document state directories after worker crashes
-			folders := []string{
-				appconfig.DefaultLocationOfPending,
-				appconfig.DefaultLocationOfCurrent,
-				appconfig.DefaultLocationOfCompleted,
-				appconfig.DefaultLocationOfCorrupt}
-			instanceId, _ := platform.InstanceID()
-			for _, folder := range folders {
-				directoryName := filepath.Join(appconfig.DefaultDataStorePath,
-					instanceId,
-					appconfig.DefaultDocumentRootDirName,
-					appconfig.DefaultLocationOfState,
-					folder)
-				isDirEmpty, _ := fileutil.IsDirEmpty(directoryName)
-				suite.T().Logf("Checking directory %s", directoryName)
-				assert.True(suite.T(), isDirEmpty, "Directory is not empty")
-
-			}
-			c <- 1
-		} else if sendReplyPayload.DocumentStatus == contracts.ResultStatusSuccess {
-			suite.T().Errorf("Document execution %v but it was supposed to fail", sendReplyPayload.DocumentStatus)
-			c <- 1
 		}
 		return &ssmmds.SendReplyOutput{}
 	})
 
-	// start the agent and block test until it finishes executing documents
+	// start the agent and block test until it finishes executing both documents
 	suite.ssmAgent.Start()
 	<-c
+	<-c
+
+	//Verify that the agent cleans up document state directories after worker crashes
+	//Current folder will still have the document state
+	//The next time agent runs it'll try to process documents in current folder
+	//but will find that the document worker finished execution and it will remove it from current folder
+	folders := []string{
+		appconfig.DefaultLocationOfPending,
+		appconfig.DefaultLocationOfCompleted,
+		appconfig.DefaultLocationOfCorrupt}
+	instanceId, _ := platform.InstanceID()
+	for _, folder := range folders {
+		directoryName := filepath.Join(appconfig.DefaultDataStorePath,
+			instanceId,
+			appconfig.DefaultDocumentRootDirName,
+			appconfig.DefaultLocationOfState,
+			folder)
+		isDirEmpty, _ := fileutil.IsDirEmpty(directoryName)
+		suite.T().Logf("Checking directory %s", directoryName)
+		assert.True(suite.T(), isDirEmpty, "Directory is not empty")
+	}
 
 	// stop agent execution
 	suite.ssmAgent.Stop()
 }
-
-//TestDocumentWorkerCrashMultiStepDocument tests the agent recovers if the document worker crashes and sends valid results, and executes other document steps successfully
-/* func (suite *CrashWorkerTestSuite) TestDocumentWorkerCrashMultiStepDocument() {
-	suite.mdsSdkMock.On("GetMessagesRequest", mock.AnythingOfType("*ssmmds.GetMessagesInput")).Return(&request.Request{}, func(input *ssmmds.GetMessagesInput) *ssmmds.GetMessagesOutput {
-		messageOutput, _ := testutils.GenerateMessages(testdata.CrashWorkerMultiStepMDSMessage)
-		return messageOutput
-	}, nil)
-
-	suite.mdsSdkMock.On("GetMessagesRequest", mock.AnythingOfType("*ssmmds.GetMessagesInput")).Return(&request.Request{}, func(input *ssmmds.GetMessagesInput) *ssmmds.GetMessagesOutput {
-		emptyMessage, _ := testutils.GenerateEmptyMessage()
-		return emptyMessage
-	}, nil)
-
-	defer func() {
-		cleanUpCrashWorkerTest(suite)
-	}()
-
-	// a channel to block test execution untill the agent is done processing the required number of messages
-	c := make(chan int)
-	suite.mdsSdkMock.On("SendReplyRequest", mock.AnythingOfType("*ssmmds.SendReplyInput")).Return(&request.Request{}, func(input *ssmmds.SendReplyInput) *ssmmds.SendReplyOutput {
-		payload := input.Payload
-		var sendReplyPayload messageContracts.SendReplyPayload
-		json.Unmarshal([]byte(*payload), &sendReplyPayload)
-
-		if sendReplyPayload.DocumentStatus == contracts.ResultStatusFailed {
-			suite.T().Logf("Document execution %v", sendReplyPayload.DocumentStatus)
-			foundPlugin := false
-			for _, pluginStatus := range sendReplyPayload.RuntimeStatus {
-				if pluginStatus.Status == contracts.ResultStatusFailed {
-					foundPlugin = true
-					assert.Contains(suite.T(), pluginStatus.Output, testdata.CrashWorkerErrorMessgae, "plugin output doesn't contain the expected error message")
-				}
-			}
-			if !foundPlugin {
-				suite.T().Error("Couldn't find plugin with result status failed")
-			}
-			//Verify that the agent cleans up document state directories after worker crashes
-			folders := []string{
-				appconfig.DefaultLocationOfPending,
-				appconfig.DefaultLocationOfCurrent,
-				appconfig.DefaultLocationOfCompleted,
-				appconfig.DefaultLocationOfCorrupt}
-
-			instanceId, _ := platform.InstanceID()
-			for _, folder := range folders {
-				directoryName := filepath.Join(appconfig.DefaultDataStorePath,
-					instanceId,
-					appconfig.DefaultDocumentRootDirName,
-					appconfig.DefaultLocationOfState,
-					folder)
-				isDirEmpty, _ := fileutil.IsDirEmpty(directoryName)
-				suite.T().Logf("Checking directory %s", directoryName)
-				assert.True(suite.T(), isDirEmpty, "Directory is not empty")
-			}
-			c <- 1
-		} else if sendReplyPayload.DocumentStatus == contracts.ResultStatusSuccess {
-			suite.T().Errorf("Document execution %v but it was supposed to fail", sendReplyPayload.DocumentStatus)
-			c <- 1
-		}
-		return &ssmmds.SendReplyOutput{}
-	})
-
-	// start the agent and block test until it finishes executing documents
-	suite.ssmAgent.Start()
-	<-c
-
-	// stop agent execution
-	suite.ssmAgent.Stop()
-} */
 
 func TestCrashWorkerTestSuite(t *testing.T) {
 	suite.Run(t, new(CrashWorkerTestSuite))

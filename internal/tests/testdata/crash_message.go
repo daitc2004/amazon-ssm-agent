@@ -27,7 +27,7 @@ var CrashWorkerMDSMessage = `{
         "action": "aws:runShellScript",
         "inputs": {
           "runCommand": [
-            "killall -9 ssm-document-worker"
+            "kill -9 $PPID"
           ]
         },
         "maxAttempts": 0,
@@ -71,97 +71,3 @@ var CrashWorkerMDSMessage = `{
   "CloudWatchLogGroupName": "",
   "CloudWatchOutputEnabled": "false"
   }`
-
-var CrashWorkerMultiStepMDSMessage = `{
-	"Parameters": null,
-	"DocumentContent": {
-		"schemaVersion": "2.2",
-		"description": "doc",
-		"runtimeConfig": null,
-		"mainSteps": [
-			{
-				"action": "aws:runShellScript",
-				"inputs": {
-					"runCommand": [
-						"echo $$"
-					]
-				},
-				"maxAttempts": 0,
-				"name": "crashWorkerLinux",
-				"onFailure": "",
-				"settings": null,
-				"timeoutSeconds": 0,
-				"precondition": {
-					"StringEquals": [
-						"platformType",
-						"Linux"
-					]
-				}
-			},
-			{
-				"action": "aws:runShellScript",
-				"inputs": {
-					"runCommand": [
-						"echo $$"
-					]
-				},
-				"maxAttempts": 0,
-				"name": "passWorkerLinux",
-				"onFailure": "",
-				"settings": null,
-				"timeoutSeconds": 0,
-				"precondition": {
-					"StringEquals": [
-						"platformType",
-						"Linux"
-					]
-				}
-			},
-			{
-				"action": "aws:runPowerShellScript",
-				"inputs": {
-					"runCommand": [
-						"Taskkill /F /IM ssm-document-worker.exe"
-					]
-				},
-				"maxAttempts": 0,
-				"name": "crashWorkerWindows",
-				"onFailure": "",
-				"settings": null,
-				"timeoutSeconds": 0,
-				"precondition": {
-					"StringEquals": [
-						"platformType",
-						"Windows"
-					]
-				}
-			},
-			{
-				"action": "aws:runPowerShellScript",
-				"inputs": {
-					"runCommand": [
-						"start-sleep 60"
-					]
-				},
-				"maxAttempts": 0,
-				"name": "passWorkerWindows",
-				"onFailure": "",
-				"settings": null,
-				"timeoutSeconds": 0,
-				"precondition": {
-					"StringEquals": [
-						"platformType",
-						"Windows"
-					]
-				}
-			}
-		],
-		"parameters": null
-	},
-	"CommandId": "be8d9d4b-da53-4d2f-a96b-60aec17739af",
-	"DocumentName": "test",
-	"OutputS3KeyPrefix": "",
-	"OutputS3BucketName": "",
-	"CloudWatchLogGroupName": "",
-	"CloudWatchOutputEnabled": "false"
-	}`
